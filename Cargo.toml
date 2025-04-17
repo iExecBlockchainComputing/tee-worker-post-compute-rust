@@ -1,0 +1,6 @@
+[package]
+name = "tee-worker-post-compute"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
