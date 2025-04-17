@@ -77,4 +77,12 @@ mod tests {
             concatenate_and_hash(&[hexa1, hexa2, hexa3])
         )
     }
+
+    #[test]
+    fn get_sha256_digest() {
+        assert_eq!(
+            "0xb33845db05fb0822f1f1e3677cc6787b8a1a7a21f3c12f9e97c70cb596222218",
+            sha256(String::from("utf8String"))
+        )
+    }
 }
