@@ -1,5 +1,5 @@
-use sha256::digest;
 use sha3::{Digest, Keccak256};
+use sha256::digest;
 
 pub fn concatenate_and_hash(hexa_strings: &[&str]) -> String {
     let mut hasher = Keccak256::default();
@@ -34,10 +34,7 @@ pub fn hex_string_to_byte_array(input: &str) -> Vec<u8> {
 }
 
 pub fn clean_hex_prefix(input: &str) -> &str {
-    match input.strip_prefix("0x") {
-        None => input,
-        Some(value) => value,
-    }
+    input.strip_prefix("0x").unwrap_or(input)
 }
 
 pub fn sha256(input: String) -> String {
@@ -75,6 +72,22 @@ mod tests {
         assert_eq!(
             "0x54a76d209e8167e1ffa3bde8e3e7b30068423ca9554e1d605d8ee8fd0f165562",
             concatenate_and_hash(&[hexa1, hexa2, hexa3])
+        )
+    }
+
+    #[test]
+    fn it_removes_prefix() {
+        assert_eq!(
+            "54a76d209e8167e1ffa3bde8e3e7b30068423ca9554e1d605d8ee8fd0f165562",
+            clean_hex_prefix("0x54a76d209e8167e1ffa3bde8e3e7b30068423ca9554e1d605d8ee8fd0f165562")
+        )
+    }
+
+    #[test]
+    fn it_returns_value_when_no_prefix() {
+        assert_eq!(
+            "54a76d209e8167e1ffa3bde8e3e7b30068423ca9554e1d605d8ee8fd0f165562",
+            clean_hex_prefix("54a76d209e8167e1ffa3bde8e3e7b30068423ca9554e1d605d8ee8fd0f165562")
         )
     }
 
