@@ -22,15 +22,12 @@ pub fn sign_enclave_challenge(
     message_hash: &str,
     enclave_challenge_private_key: &str,
 ) -> Result<String, PostComputeError> {
-    // Parse the private key from the string
     let signer: PrivateKeySigner = enclave_challenge_private_key.parse::<PrivateKeySigner>()
         .map_err(|_| PostComputeError::new(PostComputeInvalidEnclaveChallengePrivateKey))?;
 
-    // Sign the message hash
     let signature: Signature = signer.sign_message_sync(&hex_string_to_byte_array(&message_hash))
         .map_err(|_| PostComputeError::new(PostComputeInvalidTeeSignature))?;
 
-    // Return the signature as a hexadecimal string
     Ok(signature.to_string())
 }
 
