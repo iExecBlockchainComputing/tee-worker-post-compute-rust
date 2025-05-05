@@ -268,9 +268,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer"
-version = "0.15.7"
+version = "0.15.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c20b8766d2143f49b4f578889b51336f001624ed9cb37ee09ff23ab29635530"
+checksum = "07abd80b2db2606a4d4566b8d71440534c46160f6bd34cf029be145ecc20fd46"
 dependencies = [
  "alloy-primitives",
  "async-trait",
@@ -283,9 +283,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer-local"
-version = "0.15.7"
+version = "0.15.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b148084b1384b6920c0c2320f69c7a75e18556bd61f783e3dfe3b398595a200"
+checksum = "b9031fac651c1d62ae27afaa2b5083121f5c46e610564935b0b6f7909b484e0c"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
