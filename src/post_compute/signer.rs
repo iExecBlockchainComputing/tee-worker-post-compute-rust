@@ -1,23 +1,11 @@
+use crate::post_compute::errors::{PostComputeError, ReplicateStatusCause::*};
 use crate::utils::hash_utils::{concatenate_and_hash, hex_string_to_byte_array};
 use alloy_signer::{Signature, SignerSync};
 use alloy_signer_local::PrivateKeySigner;
 use std::env;
-use thiserror::Error;
 
 const SIGN_WORKER_ADDRESS: &str = "SIGN_WORKER_ADDRESS";
 const SIGN_TEE_CHALLENGE_PRIVATE_KEY: &str = "SIGN_TEE_CHALLENGE_PRIVATE_KEY";
-
-#[derive(Error, Debug)]
-pub enum PostComputeError {
-    #[error("Failed to sign TeeEnclaveChallenge with the provided private key")]
-    PostComputeInvalidTeeSignature,
-    #[error("Failed to verify TeeEnclaveChallenge signature (exiting)")]
-    PostComputeInvalidEnclaveChallengePrivateKey,
-    #[error("Worker address related environment variable is missing")]
-    PostComputeWorkerAddressMissing,
-    #[error("Tee challenge private key related environment variable is missing")]
-    PostComputeTeeChallengePrivateKeyMissing,
-}
 
 /// Signs the provided message hash using the enclave challenge private key.
 ///
@@ -36,14 +24,14 @@ pub fn sign_enclave_challenge(
 ) -> Result<String, PostComputeError> {
     // Parse the private key from the string
     let signer: PrivateKeySigner = enclave_challenge_private_key.parse::<PrivateKeySigner>()
-        .map_err(|_| PostComputeError::PostComputeInvalidEnclaveChallengePrivateKey)?;
+        .map_err(|_| PostComputeError::new(PostComputeInvalidEnclaveChallengePrivateKey))?;
 
     // Sign the message hash
     let signature: Signature = signer.sign_message_sync(&hex_string_to_byte_array(&message_hash))
-        .map_err(|_| PostComputeError::PostComputeInvalidTeeSignature)?;
+        .map_err(|_| PostComputeError::new(PostComputeInvalidTeeSignature))?;
 
     // Return the signature as a hexadecimal string
-    Ok(format!("{}", signature.to_string()))
+    Ok(signature.to_string())
 }
 
 /// Generates an enclave challenge for the given chain task ID.
@@ -59,11 +47,11 @@ pub fn sign_enclave_challenge(
 pub fn get_challenge(chain_task_id: &str) -> Result<String, PostComputeError> {
     let worker_address: String = match env::var(SIGN_WORKER_ADDRESS) {
         Ok(val) => val,
-        Err(_) => Err(PostComputeError::PostComputeWorkerAddressMissing)?,
+        Err(_) => Err(PostComputeError::new(PostComputeWorkerAddressMissing))?,
     };
     let tee_challenge_private_key = match env::var(SIGN_TEE_CHALLENGE_PRIVATE_KEY) {
         Ok(val) => val,
-        Err(_) => Err(PostComputeError::PostComputeTeeChallengePrivateKeyMissing)?,
+        Err(_) => Err(PostComputeError::new(PostComputeTeeChallengePrivateKeyMissing))?,
     };
     let message_hash: String = concatenate_and_hash(&[chain_task_id, &worker_address]);
     sign_enclave_challenge(&message_hash, &tee_challenge_private_key)
@@ -99,9 +87,9 @@ mod tests {
         assert!(
             matches!(
                 result,
-                Err(PostComputeError::PostComputeInvalidEnclaveChallengePrivateKey)
+                Err(ref err) if err.exit_cause == PostComputeInvalidEnclaveChallengePrivateKey
             ),
-            "Should return invalid private key error"
+            "Should return missing TEE challenge private key error"
         );
     }
 
@@ -150,7 +138,7 @@ mod tests {
                 assert!(
                     matches!(
                         result,
-                        Err(PostComputeError::PostComputeWorkerAddressMissing)
+                        Err(ref err) if err.exit_cause == PostComputeWorkerAddressMissing
                     ),
                     "Should return missing worker address error"
                 );
@@ -170,7 +158,7 @@ mod tests {
                 assert!(
                     matches!(
                         result,
-                        Err(PostComputeError::PostComputeTeeChallengePrivateKeyMissing)
+                        Err(ref err) if err.exit_cause == PostComputeTeeChallengePrivateKeyMissing
                     ),
                     "Should return missing private key error"
                 );
