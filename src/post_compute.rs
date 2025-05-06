@@ -1,2 +1,2 @@
-pub mod signer;
 pub mod errors;
+pub mod signer;
