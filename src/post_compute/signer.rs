@@ -7,17 +7,39 @@ use std::env;
 const SIGN_WORKER_ADDRESS: &str = "SIGN_WORKER_ADDRESS";
 const SIGN_TEE_CHALLENGE_PRIVATE_KEY: &str = "SIGN_TEE_CHALLENGE_PRIVATE_KEY";
 
-/// Signs the provided message hash using the enclave challenge private key.
+/// Signs a message hash using the provided enclave challenge private key.
 ///
-/// **Arguments**
+/// This function takes a message hash in hexadecimal string format, converts it to a byte array,
+/// and signs it using the provided private key. The resulting signature is then converted back
+/// to a string representation.
 ///
-/// * `message_hash` - A byte slice representing the message hash to be signed.
-/// * `enclave_challenge_private_key` - A hexadecimal string of the private key.
+/// # Arguments
 ///
-/// **Returns**
+/// * `message_hash` - A hexadecimal string representing the hash to be signed
+/// * `enclave_challenge_private_key` - A string containing the private key used for signing
 ///
-/// * `Ok(String)` containing the hexadecimal representation of the signature if successful.
-/// * `Err(PostComputeError::PostComputeInvalidEnclaveChallengePrivateKey)` if the private key is invalid.
+/// # Returns
+///
+/// * `Ok(String)` - The signature as a hexadecimal string if successful
+/// * `Err(PostComputeError)` - An error if the private key is invalid or if signing fails
+///
+/// # Errors
+///
+/// This function will return an error in the following situations:
+/// * The provided private key cannot be parsed as a valid `PrivateKeySigner` (returns `PostComputeInvalidEnclaveChallengePrivateKey`)
+/// * The signing operation fails (returns `PostComputeInvalidTeeSignature`)
+///
+/// # Example
+///
+/// ```
+/// let message_hash = "0x5cd0e9c5180dd35e2b8285d0db4ded193a9b4be6fbfab90cbadccecab130acad";
+/// let private_key = "0xdd3b993ec21c71c1f6d63a5240850e0d4d8dd83ff70d29e49247958548c1d479";
+///
+/// match sign_enclave_challenge(message_hash, private_key) {
+///     Ok(signature) => println!("Signature: {}", signature),
+///     Err(e) => eprintln!("Error: {:?}", e),
+/// }
+/// ```
 pub fn sign_enclave_challenge(
     message_hash: &str,
     enclave_challenge_private_key: &str,
@@ -31,16 +53,47 @@ pub fn sign_enclave_challenge(
     Ok(signature.to_string())
 }
 
-/// Generates an enclave challenge for the given chain task ID.
+/// Generates a challenge signature for a given chain task ID.
 ///
-/// **Arguments**
+/// This function retrieves the worker address and TEE challenge private key from the environment,
+/// then creates a message hash by concatenating and hashing the chain task ID and worker address.
+/// Finally, it signs this message hash with the private key.
 ///
-/// * `chain_task_id` - A string slice representing the chain task ID.
+/// # Arguments
 ///
-/// **Returns**
+/// * `chain_task_id` - A string identifier for the chain task
 ///
-/// * `Ok(String)` containing the hexadecimal representation of the challenge.
-/// * `Err(PostComputeError)` if any error occurs during the process.
+/// # Returns
+///
+/// * `Ok(String)` - The challenge signature as a hexadecimal string if successful
+/// * `Err(PostComputeError)` - An error if required environment variables are missing or if signing fails
+///
+/// # Errors
+///
+/// This function will return an error in the following situations:
+/// * The worker address environment variable is missing (returns `PostComputeWorkerAddressMissing`)
+/// * The TEE challenge private key environment variable is missing (returns `PostComputeTeeChallengePrivateKeyMissing`)
+/// * The signing operation fails (returns `PostComputeInvalidTeeSignature`)
+///
+/// # Environment Variables
+///
+/// * `SIGN_WORKER_ADDRESS` - The worker's address used in message hash calculation
+/// * `SIGN_TEE_CHALLENGE_PRIVATE_KEY` - The private key used for signing the challenge
+///
+/// # Example
+///
+/// ```
+/// // Assuming the necessary environment variables are set:
+/// // SIGN_WORKER_ADDRESS=0xabcdef123456789
+/// // SIGN_TEE_CHALLENGE_PRIVATE_KEY=0xdd3b993ec21c71c1f6d63a5240850e0d4d8dd83ff70d29e49247958548c1d479
+///
+/// let chain_task_id = "0x123456789abcdef";
+///
+/// match challenge(chain_task_id) {
+///     Ok(signature) => println!("Challenge signature: {}", signature),
+///     Err(e) => eprintln!("Error generating challenge: {:?}", e),
+/// }
+/// `
 pub fn get_challenge(chain_task_id: &str) -> Result<String, PostComputeError> {
     let worker_address: String = match env::var(SIGN_WORKER_ADDRESS) {
         Ok(val) => val,
