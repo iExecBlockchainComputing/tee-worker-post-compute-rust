@@ -44,10 +44,12 @@ pub fn sign_enclave_challenge(
     message_hash: &str,
     enclave_challenge_private_key: &str,
 ) -> Result<String, PostComputeError> {
-    let signer: PrivateKeySigner = enclave_challenge_private_key.parse::<PrivateKeySigner>()
+    let signer: PrivateKeySigner = enclave_challenge_private_key
+        .parse::<PrivateKeySigner>()
         .map_err(|_| PostComputeError::new(PostComputeInvalidEnclaveChallengePrivateKey))?;
 
-    let signature: Signature = signer.sign_message_sync(&hex_string_to_byte_array(&message_hash))
+    let signature: Signature = signer
+        .sign_message_sync(&hex_string_to_byte_array(&message_hash))
         .map_err(|_| PostComputeError::new(PostComputeInvalidTeeSignature))?;
 
     Ok(signature.to_string())
@@ -101,7 +103,9 @@ pub fn get_challenge(chain_task_id: &str) -> Result<String, PostComputeError> {
     };
     let tee_challenge_private_key = match env::var(SIGN_TEE_CHALLENGE_PRIVATE_KEY) {
         Ok(val) => val,
-        Err(_) => Err(PostComputeError::new(PostComputeTeeChallengePrivateKeyMissing))?,
+        Err(_) => Err(PostComputeError::new(
+            PostComputeTeeChallengePrivateKeyMissing,
+        ))?,
     };
     let message_hash: String = concatenate_and_hash(&[chain_task_id, &worker_address]);
     sign_enclave_challenge(&message_hash, &tee_challenge_private_key)

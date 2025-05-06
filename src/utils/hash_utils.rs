@@ -1,5 +1,5 @@
-use sha256::digest;
 use sha3::{Digest, Keccak256};
+use sha256::digest;
 
 pub fn concatenate_and_hash(hexa_strings: &[&str]) -> String {
     let mut hasher = Keccak256::default();
