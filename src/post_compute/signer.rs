@@ -93,7 +93,7 @@ pub fn sign_enclave_challenge(
 ///     Ok(signature) => println!("Challenge signature: {}", signature),
 ///     Err(e) => eprintln!("Error generating challenge: {:?}", e),
 /// }
-/// `
+/// ```
 pub fn get_challenge(chain_task_id: &str) -> Result<String, PostComputeError> {
     let worker_address: String = match env::var(SIGN_WORKER_ADDRESS) {
         Ok(val) => val,
