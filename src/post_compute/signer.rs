@@ -49,7 +49,7 @@ pub fn sign_enclave_challenge(
         .map_err(|_| PostComputeError::new(PostComputeInvalidEnclaveChallengePrivateKey))?;
 
     let signature: Signature = signer
-        .sign_message_sync(&hex_string_to_byte_array(&message_hash))
+        .sign_message_sync(&hex_string_to_byte_array(message_hash))
         .map_err(|_| PostComputeError::new(PostComputeInvalidTeeSignature))?;
 
     Ok(signature.to_string())
