@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[derive(Debug, PartialEq, Error)]
+#[derive(Debug, PartialEq, Error, Serialize, Deserialize)]
 pub enum ReplicateStatusCause {
     #[error("Failed to verify TeeEnclaveChallenge signature (exiting)")]
     PostComputeInvalidTeeSignature,
@@ -10,10 +11,14 @@ pub enum ReplicateStatusCause {
     PostComputeWorkerAddressMissing,
     #[error("Tee challenge private key related environment variable is missing")]
     PostComputeTeeChallengePrivateKeyMissing,
+    #[error("Chain task ID related environment variable is missing")]
+    PostComputeChainTaskIdMissing,
+    #[error("Unexpected error occured")]
+    PostComputeFailedUnknownIssue,
 }
 
 #[derive(Debug, Error)]
-#[error("Post-compute failed: {exit_cause}")]
+#[error("PostCompute failed: {exit_cause}")]
 pub struct PostComputeError {
     pub exit_cause: ReplicateStatusCause,
 }
