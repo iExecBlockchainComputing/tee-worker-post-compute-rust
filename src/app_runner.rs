@@ -1,4 +1,4 @@
-use crate::api::worker_api::{ExitMessage, send_exit_cause};
+use crate::api::worker_api::{ExitMessage, get_worker_api_client};
 use crate::post_compute::{
     errors::{PostComputeError, ReplicateStatusCause},
     signer::get_challenge,
@@ -63,7 +63,12 @@ pub fn start() -> i32 {
 
             let exit_message = ExitMessage::from(exit_cause);
 
-            match send_exit_cause(&authorization, &chain_task_id, &exit_message) {
+            let worker_api_client = get_worker_api_client();
+            match worker_api_client.send_exit_cause_for_post_compute_stage(
+                &authorization,
+                &chain_task_id,
+                &exit_message,
+            ) {
                 Ok(()) => 1, // Exit code for reported failure
                 Err(report_error) => {
                     eprintln!("Failed to report exit cause: {}", report_error);
