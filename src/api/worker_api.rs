@@ -39,7 +39,8 @@ impl<'a> From<&'a ReplicateStatusCause> for ExitMessage<'a> {
 
 /// Thin wrapper around a [`Client`] that knows how to reach the iExec worker API.
 ///
-/// The client is shareable across threads thanks to the underlying [`OnceLock`].
+/// This client can be created directly with a base URL using [`new()`], or
+/// configured from environment variables using [`from_env()`].
 ///
 /// # Example
 ///
@@ -63,6 +64,22 @@ impl WorkerApiClient {
         }
     }
 
+    /// Creates a new WorkerApiClient instance with configuration from environment variables.
+    ///
+    /// This method retrieves the worker host from the [`WORKER_HOST_ENV_VAR`] environment variable.
+    /// If the variable is not set or empty, it defaults to `"worker:13100"`.
+    ///
+    /// # Returns
+    ///
+    /// * `WorkerApiClient` - A new client configured with the appropriate base URL
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use crate::api::worker_api::WorkerApiClient;
+    ///
+    /// let client = WorkerApiClient::from_env();
+    /// ```
     pub fn from_env() -> Self {
         let worker_host = get_env_var_or_error(
             TeeSessionEnvironmentVariable::WORKER_HOST_ENV_VAR,
@@ -131,14 +148,6 @@ impl WorkerApiClient {
             Ok(())
         } else {
             Err(response.error_for_status().unwrap_err())
-        }
-    }
-
-    #[cfg(test)]
-    pub fn with_client(base_url: &str, client: Client) -> Self {
-        WorkerApiClient {
-            base_url: base_url.to_string(),
-            client,
         }
     }
 }
