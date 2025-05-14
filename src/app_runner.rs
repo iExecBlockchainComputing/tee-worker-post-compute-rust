@@ -6,6 +6,11 @@ use crate::post_compute::{
 use crate::utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error};
 use std::error::Error;
 
+/// Defines the interface for post-compute operations.
+///
+/// This trait encapsulates the core functionality needed for running post-compute operations.
+/// Implementations of this trait can be used with the [`start_with_runner`] function to execute
+/// the post-compute workflow.
 pub trait PostComputeRunnerInterface {
     fn run_post_compute(&self, chain_task_id: &str) -> Result<(), Box<dyn Error>>;
     fn get_challenge(&self, chain_task_id: &str) -> Result<String, PostComputeError>;
@@ -17,6 +22,10 @@ pub trait PostComputeRunnerInterface {
     ) -> Result<(), reqwest::Error>;
 }
 
+/// Production implementation of [`PostComputeRunnerInterface`]
+///
+/// This struct provides a concrete implementation of the [`PostComputeRunnerInterface`],
+/// using the [`signer`] module challenge generation and [`worker_api`] error reporting mechanisms.
 pub struct DefaultPostComputeRunner;
 
 impl PostComputeRunnerInterface for DefaultPostComputeRunner {
@@ -43,13 +52,37 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
     }
 }
 
-/**
- * Exits:
- * - 0: Success
- * - 1: Failure; Reported cause (known or unknown)
- * - 2: Failure; Unreported cause since reporting issue failed
- * - 3: Failure; Unreported cause since missing taskID context
- */
+/// Executes the post-compute workflow with a provided runner implementation.
+///
+/// This function orchestrates the full post-compute process, handling environment
+/// variable checks, execution of the main post-compute logic, and error reporting.
+/// It uses the provided runner to execute core operations and handles all the
+/// workflow states and transitions.
+///
+/// # Arguments
+///
+/// * `runner` - An implementation of [`PostComputeRunnerInterface`] that will be used to execute the post-compute operations.
+///
+/// # Returns
+///
+/// * `i32` - An exit code indicating the result of the post-compute process:
+///   - 0: Success - The post-compute completed successfully
+///   - 1: Failure with reported cause - The post-compute failed but the cause was reported
+///   - 2: Failure with unreported cause - The post-compute failed and the cause could not be reported
+///   - 3: Failure due to missing taskID context - The post-compute could not start due to missing task ID
+///
+/// # Example
+///
+/// ```
+/// use crate::app_runner::{start_with_runner, DefaultPostComputeRunner};
+///
+/// // Using the default runner
+/// let exit_code = start_with_runner(&DefaultPostComputeRunner);
+///
+/// // Using a custom runner
+/// let custom_runner = MyCustomRunner::new();
+/// let exit_code = start_with_runner(&custom_runner);
+/// ```
 pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
     println!("Tee worker post-compute started");
     let chain_task_id: String = match get_env_var_or_error(
@@ -111,6 +144,24 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
     }
 }
 
+/// Starts the post-compute process using the [`DefaultPostComputeRunner`].
+///
+/// This is a convenience function that creates a [`DefaultPostComputeRunner`]
+/// and passes it to [`start_with_runner`].
+///
+/// # Returns
+///
+/// * `i32` - An exit code indicating the result of the post-compute process.
+///   See [`start_with_runner`] for details on the possible exit codes.
+///
+/// # Example
+///
+/// ```
+/// use crate::app_runner::start;
+///
+/// let exit_code = start();
+/// std::process::exit(exit_code);
+/// ```
 pub fn start() -> i32 {
     start_with_runner(&DefaultPostComputeRunner)
 }
