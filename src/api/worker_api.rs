@@ -2,9 +2,6 @@ use crate::post_compute::errors::ReplicateStatusCause;
 use crate::utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error};
 use reqwest::{Error, blocking::Client, header::AUTHORIZATION};
 use serde::Serialize;
-use std::sync::OnceLock;
-
-const DEFAULT_WORKER_HOST: &str = "worker:13100";
 
 /// Represents payload that can be sent to the worker API to report the outcome of the
 /// post‑compute stage.
@@ -56,37 +53,7 @@ pub struct WorkerApiClient {
     client: Client,
 }
 
-pub static WORKER_API_CLIENT: OnceLock<WorkerApiClient> = OnceLock::new();
-
-/// Returns a reference to the global [`WorkerApiClient`] instance.
-///
-/// This function provides a convenient way to access a shared [`WorkerApiClient`] instance,
-/// initializing it with the appropriate base URL on first access. The base URL is
-/// determined from the [`WORKER_HOST`] environment variable, defaulting to `"worker:13100"`
-/// if the variable is not set.
-///
-/// # Returns
-///
-/// * `&'static WorkerApiClient` - A reference to the singleton [`WorkerApiClient`] instance
-///
-/// # Example
-///
-/// ```
-/// use crate::api::worker_api::get_worker_api_client;
-///
-/// let client = get_worker_api_client();
-/// ```
-pub fn get_worker_api_client() -> &'static WorkerApiClient {
-    WORKER_API_CLIENT.get_or_init(|| {
-        let worker_host = get_env_var_or_error(
-            TeeSessionEnvironmentVariable::WORKER_HOST_ENV_VAR,
-            ReplicateStatusCause::PostComputeWorkerAddressMissing,
-        )
-        .unwrap_or_else(|_| DEFAULT_WORKER_HOST.to_string());
-        let base_url = format!("http://{}", &worker_host);
-        WorkerApiClient::new(&base_url)
-    })
-}
+const DEFAULT_WORKER_HOST: &str = "worker:13100";
 
 impl WorkerApiClient {
     pub fn new(base_url: &str) -> Self {
@@ -94,6 +61,17 @@ impl WorkerApiClient {
             base_url: base_url.to_string(),
             client: Client::builder().build().unwrap(),
         }
+    }
+
+    pub fn from_env() -> Self {
+        let worker_host = get_env_var_or_error(
+            TeeSessionEnvironmentVariable::WORKER_HOST_ENV_VAR,
+            ReplicateStatusCause::PostComputeWorkerAddressMissing,
+        )
+        .unwrap_or_else(|_| DEFAULT_WORKER_HOST.to_string());
+
+        let base_url = format!("http://{}", &worker_host);
+        Self::new(&base_url)
     }
 
     /// Sends an exit cause for a post-compute operation to the Worker API.
@@ -155,16 +133,69 @@ impl WorkerApiClient {
             Err(response.error_for_status().unwrap_err())
         }
     }
+
+    #[cfg(test)]
+    pub fn with_client(base_url: &str, client: Client) -> Self {
+        WorkerApiClient {
+            base_url: base_url.to_string(),
+            client,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+    use serde_json::{json, to_string};
+    use temp_env::with_vars;
     use wiremock::{
         Mock, MockServer, ResponseTemplate,
         matchers::{body_json, header, method, path},
     };
+
+    // region ExitMessage()
+    #[test]
+    fn should_serialize_exit_message() {
+        let causes = [
+            ReplicateStatusCause::PostComputeInvalidTeeSignature,
+            ReplicateStatusCause::PostComputeWorkerAddressMissing,
+            ReplicateStatusCause::PostComputeFailedUnknownIssue,
+        ];
+
+        for cause in causes {
+            let exit_message = ExitMessage::from(&cause);
+            let serialized = to_string(&exit_message).expect("Failed to serialize");
+            let expected = format!("{{\"cause\":{}}}", to_string(&cause).unwrap());
+            assert_eq!(serialized, expected);
+        }
+    }
+    // endregion
+
+    // region get_worker_api_client
+    #[test]
+    fn should_get_worker_api_client_with_env_var() {
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::WORKER_HOST_ENV_VAR.name(),
+                Some("custom-worker-host:9999"),
+            )],
+            || {
+                let client = WorkerApiClient::from_env();
+                assert_eq!(client.base_url, "http://custom-worker-host:9999");
+            },
+        );
+    }
+
+    #[test]
+    fn should_get_worker_api_client_without_env_var() {
+        let client = WorkerApiClient::from_env();
+        assert_eq!(client.base_url, format!("http://{}", DEFAULT_WORKER_HOST));
+    }
+    // endregion
+
+    // region send_exit_cause_for_post_compute_stage()
+    const CHALLENGE: &str = "challenge";
+    const CHAIN_TASK_ID: &str = "0x123456789abcdef";
 
     #[tokio::test]
     async fn should_send_exit_cause() {
@@ -176,8 +207,8 @@ mod tests {
         });
 
         Mock::given(method("POST"))
-            .and(path("/compute/post/0x0/exit"))
-            .and(header("Authorization", "challenge"))
+            .and(path(format!("/compute/post/{}/exit", CHAIN_TASK_ID)))
+            .and(header("Authorization", CHALLENGE))
             .and(body_json(&expected_body))
             .respond_with(ResponseTemplate::new(200))
             .expect(1)
@@ -189,8 +220,8 @@ mod tests {
                 ExitMessage::from(&ReplicateStatusCause::PostComputeInvalidTeeSignature);
             let worker_api_client = WorkerApiClient::new(&server_url);
             worker_api_client.send_exit_cause_for_post_compute_stage(
-                "challenge",
-                "0x0",
+                CHALLENGE,
+                CHAIN_TASK_ID,
                 &exit_message,
             )
         })
@@ -206,7 +237,7 @@ mod tests {
         let server_url = mock_server.uri();
 
         Mock::given(method("POST"))
-            .and(path("/compute/post/0x0/exit"))
+            .and(path(format!("/compute/post/{}/exit", CHAIN_TASK_ID)))
             .respond_with(ResponseTemplate::new(404))
             .expect(1)
             .mount(&mock_server)
@@ -217,8 +248,8 @@ mod tests {
                 ExitMessage::from(&ReplicateStatusCause::PostComputeFailedUnknownIssue);
             let worker_api_client = WorkerApiClient::new(&server_url);
             worker_api_client.send_exit_cause_for_post_compute_stage(
-                "challenge",
-                "0x0",
+                CHALLENGE,
+                CHAIN_TASK_ID,
                 &exit_message,
             )
         })
@@ -231,4 +262,5 @@ mod tests {
             assert_eq!(error.status().unwrap(), 404);
         }
     }
+    // endregion
 }
