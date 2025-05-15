@@ -113,6 +113,7 @@ pub fn get_challenge(chain_task_id: &str) -> Result<String, PostComputeError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::compute::utils::env_utils::TeeSessionEnvironmentVariable::*;
     use temp_env::with_vars;
 
     const CHAIN_TASK_ID: &str = "0x123456789abcdef";
@@ -150,12 +151,9 @@ mod tests {
     fn should_get_challenge() {
         with_vars(
             vec![
+                (SIGN_WORKER_ADDRESS.name(), Some(WORKER_ADDRESS)),
                 (
-                    TeeSessionEnvironmentVariable::SIGN_WORKER_ADDRESS.name(),
-                    Some(WORKER_ADDRESS),
-                ),
-                (
-                    TeeSessionEnvironmentVariable::SIGN_TEE_CHALLENGE_PRIVATE_KEY.name(),
+                    SIGN_TEE_CHALLENGE_PRIVATE_KEY.name(),
                     Some(ENCLAVE_CHALLENGE_PRIVATE_KEY),
                 ),
             ],
@@ -183,12 +181,9 @@ mod tests {
     fn should_fail_on_missing_worker_address_env_var() {
         with_vars(
             vec![
+                (SIGN_WORKER_ADDRESS.name(), None),
                 (
-                    TeeSessionEnvironmentVariable::SIGN_WORKER_ADDRESS.name(),
-                    None,
-                ),
-                (
-                    TeeSessionEnvironmentVariable::SIGN_TEE_CHALLENGE_PRIVATE_KEY.name(),
+                    SIGN_TEE_CHALLENGE_PRIVATE_KEY.name(),
                     Some(ENCLAVE_CHALLENGE_PRIVATE_KEY),
                 ),
             ],
@@ -209,14 +204,8 @@ mod tests {
     fn should_fail_on_missing_private_key_env_var() {
         with_vars(
             vec![
-                (
-                    TeeSessionEnvironmentVariable::SIGN_WORKER_ADDRESS.name(),
-                    Some(WORKER_ADDRESS),
-                ),
-                (
-                    TeeSessionEnvironmentVariable::SIGN_TEE_CHALLENGE_PRIVATE_KEY.name(),
-                    None,
-                ),
+                (SIGN_WORKER_ADDRESS.name(), Some(WORKER_ADDRESS)),
+                (SIGN_TEE_CHALLENGE_PRIVATE_KEY.name(), None),
             ],
             || {
                 let result = get_challenge(CHAIN_TASK_ID);
