@@ -1,5 +1,5 @@
 use crate::api::worker_api::{ExitMessage, WorkerApiClient};
-use crate::compute::post::{
+use crate::compute::{
     errors::{PostComputeError, ReplicateStatusCause},
     signer::get_challenge,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
@@ -183,7 +183,7 @@ pub fn run_post_compute(chain_task_id: &str) -> Result<(), Box<dyn Error>> {
 mod tests {
     use super::*;
     use crate::api::worker_api::ExitMessage;
-    use crate::compute::post::{
+    use crate::compute::{
         errors::{PostComputeError, ReplicateStatusCause},
         utils::env_utils::TeeSessionEnvironmentVariable::*,
     };
