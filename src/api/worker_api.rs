@@ -1,5 +1,7 @@
-use crate::post_compute::errors::ReplicateStatusCause;
-use crate::utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error};
+use crate::compute::post::{
+    errors::ReplicateStatusCause,
+    utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
+};
 use reqwest::{Error, blocking::Client, header::AUTHORIZATION};
 use serde::Serialize;
 
@@ -21,7 +23,7 @@ use serde::Serialize;
 ///
 /// ```
 /// use crate::api::worker_api::ExitMessage;
-/// use crate::post_compute::errors::ReplicateStatusCause;
+/// use crate::compute::errors::ReplicateStatusCause;
 ///
 /// let exit_message = ExitMessage::from(&ReplicateStatusCause::PostComputeInvalidTeeSignature);
 /// ```
@@ -116,7 +118,7 @@ impl WorkerApiClient {
     ///
     /// ```
     /// use crate::api::worker_api::{ExitMessage, WorkerApiClient};
-    /// use crate::post_compute::errors::ReplicateStatusCause;
+    /// use crate::compute::errors::ReplicateStatusCause;
     ///
     /// let client = WorkerApiClient::new("http://worker:13100");
     /// let exit_message = ExitMessage::from(&ReplicateStatusCause::PostComputeInvalidTeeSignature);
@@ -155,6 +157,7 @@ impl WorkerApiClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::compute::post::utils::env_utils::TeeSessionEnvironmentVariable::*;
     use serde_json::{json, to_string};
     use temp_env::with_vars;
     use wiremock::{
@@ -184,10 +187,7 @@ mod tests {
     #[test]
     fn should_get_worker_api_client_with_env_var() {
         with_vars(
-            vec![(
-                TeeSessionEnvironmentVariable::WORKER_HOST_ENV_VAR.name(),
-                Some("custom-worker-host:9999"),
-            )],
+            vec![(WORKER_HOST_ENV_VAR.name(), Some("custom-worker-host:9999"))],
             || {
                 let client = WorkerApiClient::from_env();
                 assert_eq!(client.base_url, "http://custom-worker-host:9999");
@@ -197,8 +197,10 @@ mod tests {
 
     #[test]
     fn should_get_worker_api_client_without_env_var() {
-        let client = WorkerApiClient::from_env();
-        assert_eq!(client.base_url, format!("http://{}", DEFAULT_WORKER_HOST));
+        with_vars(vec![(WORKER_HOST_ENV_VAR.name(), None::<&str>)], || {
+            let client = WorkerApiClient::from_env();
+            assert_eq!(client.base_url, format!("http://{}", DEFAULT_WORKER_HOST));
+        });
     }
     // endregion
 

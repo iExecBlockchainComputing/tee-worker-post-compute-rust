@@ -1,7 +1,5 @@
 mod api;
-mod app_runner;
-mod post_compute;
-mod utils;
+mod compute;
 
 fn main() {
     println!("Hello, world!");

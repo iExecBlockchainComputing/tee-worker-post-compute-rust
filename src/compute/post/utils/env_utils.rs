@@ -1,4 +1,4 @@
-use crate::post_compute::errors::{PostComputeError, ReplicateStatusCause};
+use crate::compute::post::errors::{PostComputeError, ReplicateStatusCause};
 use std::env;
 
 pub enum TeeSessionEnvironmentVariable {
