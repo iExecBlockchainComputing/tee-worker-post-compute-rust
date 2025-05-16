@@ -2963,6 +2963,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-signer",
  "alloy-signer-local",
+ "log",
  "reqwest",
  "serde",
  "serde_json",

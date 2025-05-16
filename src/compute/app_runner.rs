@@ -4,6 +4,7 @@ use crate::compute::{
     signer::get_challenge,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
 };
+use log::{error, info};
 use std::error::Error;
 
 /// Defines the interface for post-compute operations.
@@ -98,9 +99,9 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
     ) {
         Ok(id) => id,
         Err(e) => {
-            eprintln!(
-                "TEE post-compute cannot go further without taskID context [errorMessage:{}]",
-                e.exit_cause()
+            error!(
+                "TEE post-compute cannot go further without taskID context [errorMessage:{:?}]",
+                e
             );
             return 3; // Exit code for missing taskID context
         }
@@ -108,7 +109,7 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
 
     match runner.run_post_compute(&chain_task_id) {
         Ok(()) => {
-            println!("TEE post-compute completed");
+            info!("TEE post-compute completed");
             0
         }
         Err(error) => {
@@ -116,21 +117,21 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
             match error.downcast_ref::<PostComputeError>() {
                 Some(post_compute_error) => {
                     exit_cause = post_compute_error.exit_cause();
-                    eprintln!(
+                    error!(
                         "TEE post-compute failed with exit cause [errorMessage:{}]",
                         &exit_cause
                     );
                 }
                 None => {
                     exit_cause = &ReplicateStatusCause::PostComputeFailedUnknownIssue;
-                    eprintln!("TEE post-compute failed without explicit exit cause");
+                    error!("TEE post-compute failed without explicit exit cause");
                 }
             }
 
             let authorization: String = match runner.get_challenge(&chain_task_id) {
                 Ok(challenge) => challenge,
                 Err(_) => {
-                    eprintln!(
+                    error!(
                         "Failed to retrieve authorization [taskId:{}]",
                         &chain_task_id
                     );
@@ -142,8 +143,8 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
 
             match runner.send_exit_cause(&authorization, &chain_task_id, &exit_message) {
                 Ok(()) => 1, // Exit code for reported failure
-                Err(report_error) => {
-                    eprintln!("Failed to report exit cause: {}", report_error);
+                Err(_) => {
+                    error!("Failed to report exit cause [exitCause:{}]", &exit_cause);
                     2 // Exit code for unreported failure
                 }
             }
