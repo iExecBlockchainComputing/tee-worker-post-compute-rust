@@ -169,15 +169,24 @@ mod tests {
     #[test]
     fn should_serialize_exit_message() {
         let causes = [
-            ReplicateStatusCause::PostComputeInvalidTeeSignature,
-            ReplicateStatusCause::PostComputeWorkerAddressMissing,
-            ReplicateStatusCause::PostComputeFailedUnknownIssue,
+            (
+                ReplicateStatusCause::PostComputeInvalidTeeSignature,
+                "PostComputeInvalidTeeSignature",
+            ),
+            (
+                ReplicateStatusCause::PostComputeWorkerAddressMissing,
+                "PostComputeWorkerAddressMissing",
+            ),
+            (
+                ReplicateStatusCause::PostComputeFailedUnknownIssue,
+                "PostComputeFailedUnknownIssue",
+            ),
         ];
 
-        for cause in causes {
+        for (cause, message) in causes {
             let exit_message = ExitMessage::from(&cause);
             let serialized = to_string(&exit_message).expect("Failed to serialize");
-            let expected = format!("{{\"cause\":{}}}", to_string(&cause).unwrap());
+            let expected = format!("{{\"cause\":\"{message}\"}}");
             assert_eq!(serialized, expected);
         }
     }
