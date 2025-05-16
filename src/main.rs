@@ -1,6 +1,8 @@
-mod post_compute;
-mod utils;
+use std::process;
+
+mod api;
+mod compute;
 
 fn main() {
-    println!("Hello, world!");
+    process::exit(compute::app_runner::start());
 }
