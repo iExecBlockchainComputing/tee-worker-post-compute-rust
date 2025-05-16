@@ -261,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    fn should_return_valid_exit_code() {
+    fn start_return_valid_exit_code_when_ran() {
         with_vars(vec![(IEXEC_TASK_ID.name(), Some("0x123"))], || {
             let result = start();
             assert!(
@@ -272,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn should_fail_since_no_task_id() {
+    fn start_return_3_when_task_id_missing() {
         with_vars(vec![(IEXEC_TASK_ID.name(), None::<&str>)], || {
             let runner = MockRunner::new();
             let result = start_with_runner(&runner);
@@ -281,7 +281,7 @@ mod tests {
     }
 
     #[test]
-    fn should_fail_with_empty_task_id() {
+    fn start_return_3_when_empty_task_id() {
         with_vars(vec![(IEXEC_TASK_ID.name(), Some(""))], || {
             let runner = MockRunner::new();
             let result = start_with_runner(&runner);
@@ -290,7 +290,7 @@ mod tests {
     }
 
     #[test]
-    fn should_start_post_compute() {
+    fn start_return_0_when_successful() {
         with_vars(vec![(IEXEC_TASK_ID.name(), Some("0x0"))], || {
             let runner = MockRunner::new();
             let result = start_with_runner(&runner);
@@ -299,7 +299,7 @@ mod tests {
     }
 
     #[test]
-    fn should_fail_with_known_cause() {
+    fn start_return_1_when_fail_with_known_cause() {
         with_vars(vec![(IEXEC_TASK_ID.name(), Some("0x0"))], || {
             let runner = MockRunner::new().with_run_post_compute_failure(Some(
                 ReplicateStatusCause::PostComputeInvalidTeeSignature,
@@ -314,7 +314,7 @@ mod tests {
     }
 
     #[test]
-    fn should_fail_with_unknown_cause() {
+    fn start_return_1_when_fail_with_unknown_cause() {
         with_vars(vec![(IEXEC_TASK_ID.name(), Some("0x0"))], || {
             let runner = MockRunner::new().with_run_post_compute_failure(None);
 
@@ -327,7 +327,7 @@ mod tests {
     }
 
     #[test]
-    fn should_not_transmit_cause() {
+    fn start_return_2_when_exit_cause_not_transmitted() {
         with_vars(vec![(IEXEC_TASK_ID.name(), Some("0x0"))], || {
             let runner = MockRunner::new()
                 .with_run_post_compute_failure(Some(
@@ -341,7 +341,7 @@ mod tests {
     }
 
     #[test]
-    fn should_get_signer_service_exception() {
+    fn start_return_2_when_get_challenge_fails() {
         with_vars(vec![(IEXEC_TASK_ID.name(), Some("0x0"))], || {
             let runner = MockRunner::new()
                 .with_run_post_compute_failure(Some(
