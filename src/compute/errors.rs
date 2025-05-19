@@ -5,13 +5,13 @@ use thiserror::Error;
 #[serde(rename_all(serialize = "SCREAMING_SNAKE_CASE"))]
 #[allow(clippy::enum_variant_names)]
 pub enum ReplicateStatusCause {
-    #[error("Chain task ID related environment variable is missing")]
-    PostComputeChainTaskIdMissing,
+    #[error("Task ID related environment variable is missing")]
+    PostComputeTaskIdMissing,
     #[error("Unexpected error occurred")]
     PostComputeFailedUnknownIssue,
     #[error("Invalid enclave challenge private key")]
     PostComputeInvalidEnclaveChallengePrivateKey,
-    #[error("Failed to verify TeeEnclaveChallenge signature (exiting)")]
+    #[error("Invalid TEE signature")]
     PostComputeInvalidTeeSignature,
     #[error("Tee challenge private key related environment variable is missing")]
     PostComputeTeeChallengePrivateKeyMissing,

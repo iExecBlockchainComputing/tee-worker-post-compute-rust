@@ -95,7 +95,7 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
     println!("Tee worker post-compute started");
     let chain_task_id: String = match get_env_var_or_error(
         TeeSessionEnvironmentVariable::IEXEC_TASK_ID,
-        ReplicateStatusCause::PostComputeChainTaskIdMissing,
+        ReplicateStatusCause::PostComputeTaskIdMissing,
     ) {
         Ok(id) => id,
         Err(e) => {
