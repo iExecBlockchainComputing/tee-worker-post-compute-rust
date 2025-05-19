@@ -1,5 +1,5 @@
 use crate::compute::{
-    errors::{PostComputeError, ReplicateStatusCause::*},
+    errors::ReplicateStatusCause::{self, *},
     utils::{
         env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
         hash_utils::{concatenate_and_hash, hex_string_to_byte_array},
@@ -44,14 +44,14 @@ use alloy_signer_local::PrivateKeySigner;
 pub fn sign_enclave_challenge(
     message_hash: &str,
     enclave_challenge_private_key: &str,
-) -> Result<String, PostComputeError> {
+) -> Result<String, ReplicateStatusCause> {
     let signer: PrivateKeySigner = enclave_challenge_private_key
         .parse::<PrivateKeySigner>()
-        .map_err(|_| PostComputeError::new(PostComputeInvalidEnclaveChallengePrivateKey))?;
+        .map_err(|_| PostComputeInvalidEnclaveChallengePrivateKey)?;
 
     let signature: Signature = signer
         .sign_message_sync(&hex_string_to_byte_array(message_hash))
-        .map_err(|_| PostComputeError::new(PostComputeInvalidTeeSignature))?;
+        .map_err(|_| PostComputeInvalidTeeSignature)?;
 
     Ok(signature.to_string())
 }
@@ -97,7 +97,7 @@ pub fn sign_enclave_challenge(
 ///     Err(e) => eprintln!("Error generating challenge: {:?}", e),
 /// }
 /// ```
-pub fn get_challenge(chain_task_id: &str) -> Result<String, PostComputeError> {
+pub fn get_challenge(chain_task_id: &str) -> Result<String, ReplicateStatusCause> {
     let worker_address: String = get_env_var_or_error(
         TeeSessionEnvironmentVariable::SIGN_WORKER_ADDRESS,
         PostComputeWorkerAddressMissing,
@@ -141,7 +141,7 @@ mod tests {
         assert!(
             matches!(
                 result,
-                Err(ref err) if err.exit_cause == PostComputeInvalidEnclaveChallengePrivateKey
+                Err(err) if err == PostComputeInvalidEnclaveChallengePrivateKey
             ),
             "Should return missing TEE challenge private key error"
         );
@@ -192,7 +192,7 @@ mod tests {
                 assert!(
                     matches!(
                         result,
-                        Err(ref err) if err.exit_cause == PostComputeWorkerAddressMissing
+                        Err(err) if err == PostComputeWorkerAddressMissing
                     ),
                     "Should return missing worker address error"
                 );
@@ -212,7 +212,7 @@ mod tests {
                 assert!(
                     matches!(
                         result,
-                        Err(ref err) if err.exit_cause == PostComputeTeeChallengePrivateKeyMissing
+                        Err(err) if err == PostComputeTeeChallengePrivateKeyMissing
                     ),
                     "Should return missing private key error"
                 );

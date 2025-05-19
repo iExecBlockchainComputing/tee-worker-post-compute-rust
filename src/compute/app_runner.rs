@@ -1,6 +1,6 @@
 use crate::api::worker_api::{ExitMessage, WorkerApiClient};
 use crate::compute::{
-    errors::{PostComputeError, ReplicateStatusCause},
+    errors::ReplicateStatusCause,
     signer::get_challenge,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
 };
@@ -14,7 +14,7 @@ use std::error::Error;
 /// the post-compute workflow.
 pub trait PostComputeRunnerInterface {
     fn run_post_compute(&self, chain_task_id: &str) -> Result<(), Box<dyn Error>>;
-    fn get_challenge(&self, chain_task_id: &str) -> Result<String, PostComputeError>;
+    fn get_challenge(&self, chain_task_id: &str) -> Result<String, ReplicateStatusCause>;
     fn send_exit_cause(
         &self,
         authorization: &str,
@@ -41,11 +41,11 @@ impl DefaultPostComputeRunner {
 }
 
 impl PostComputeRunnerInterface for DefaultPostComputeRunner {
-    fn run_post_compute(&self, chain_task_id: &str) -> Result<(), Box<dyn Error>> {
+    fn run_post_compute(&self, _chain_task_id: &str) -> Result<(), Box<dyn Error>> {
         Err("run_post_compute not implemented yet".into())
     }
 
-    fn get_challenge(&self, chain_task_id: &str) -> Result<String, PostComputeError> {
+    fn get_challenge(&self, chain_task_id: &str) -> Result<String, ReplicateStatusCause> {
         get_challenge(chain_task_id)
     }
 
@@ -114,9 +114,9 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
         }
         Err(error) => {
             let exit_cause: &ReplicateStatusCause;
-            match error.downcast_ref::<PostComputeError>() {
+            match error.downcast_ref::<ReplicateStatusCause>() {
                 Some(post_compute_error) => {
-                    exit_cause = post_compute_error.exit_cause();
+                    exit_cause = post_compute_error;
                     error!(
                         "TEE post-compute failed with exit cause [errorMessage:{}]",
                         &exit_cause
@@ -224,19 +224,17 @@ mod tests {
             if self.run_post_compute_success {
                 Ok(())
             } else if let Some(cause) = &self.error_cause {
-                Err(Box::new(PostComputeError::new(cause.clone())))
+                Err(Box::new(cause.clone()))
             } else {
                 Err("Mock error".into())
             }
         }
 
-        fn get_challenge(&self, _chain_task_id: &str) -> Result<String, PostComputeError> {
+        fn get_challenge(&self, _chain_task_id: &str) -> Result<String, ReplicateStatusCause> {
             if self.get_challenge_success {
                 Ok("mock_challenge".to_string())
             } else {
-                Err(PostComputeError::new(
-                    ReplicateStatusCause::PostComputeTeeChallengePrivateKeyMissing,
-                ))
+                Err(ReplicateStatusCause::PostComputeTeeChallengePrivateKeyMissing)
             }
         }
 

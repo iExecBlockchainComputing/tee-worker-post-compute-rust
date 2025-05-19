@@ -29,7 +29,6 @@ use serde::Serialize;
 /// ```
 #[derive(Serialize, Debug)]
 pub struct ExitMessage<'a> {
-    #[serde(rename = "cause")]
     pub cause: &'a ReplicateStatusCause,
 }
 
@@ -171,15 +170,15 @@ mod tests {
         let causes = [
             (
                 ReplicateStatusCause::PostComputeInvalidTeeSignature,
-                "PostComputeInvalidTeeSignature",
+                "POST_COMPUTE_INVALID_TEE_SIGNATURE",
             ),
             (
                 ReplicateStatusCause::PostComputeWorkerAddressMissing,
-                "PostComputeWorkerAddressMissing",
+                "POST_COMPUTE_WORKER_ADDRESS_MISSING",
             ),
             (
                 ReplicateStatusCause::PostComputeFailedUnknownIssue,
-                "PostComputeFailedUnknownIssue",
+                "POST_COMPUTE_FAILED_UNKNOWN_ISSUE",
             ),
         ];
 
