@@ -2,33 +2,19 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Debug, PartialEq, Clone, Error, Serialize, Deserialize)]
+#[serde(rename_all(serialize = "SCREAMING_SNAKE_CASE"))]
+#[allow(clippy::enum_variant_names)]
 pub enum ReplicateStatusCause {
-    #[error("Failed to verify TeeEnclaveChallenge signature (exiting)")]
-    PostComputeInvalidTeeSignature,
+    #[error("Task ID related environment variable is missing")]
+    PostComputeTaskIdMissing,
+    #[error("Unexpected error occurred")]
+    PostComputeFailedUnknownIssue,
     #[error("Invalid enclave challenge private key")]
     PostComputeInvalidEnclaveChallengePrivateKey,
-    #[error("Worker address related environment variable is missing")]
-    PostComputeWorkerAddressMissing,
+    #[error("Invalid TEE signature")]
+    PostComputeInvalidTeeSignature,
     #[error("Tee challenge private key related environment variable is missing")]
     PostComputeTeeChallengePrivateKeyMissing,
-    #[error("Chain task ID related environment variable is missing")]
-    PostComputeChainTaskIdMissing,
-    #[error("Unexpected error occured")]
-    PostComputeFailedUnknownIssue,
-}
-
-#[derive(Debug, Error, Clone)]
-#[error("PostCompute failed: {exit_cause}")]
-pub struct PostComputeError {
-    pub exit_cause: ReplicateStatusCause,
-}
-
-impl PostComputeError {
-    pub fn new(cause: ReplicateStatusCause) -> Self {
-        Self { exit_cause: cause }
-    }
-
-    pub fn exit_cause(&self) -> &ReplicateStatusCause {
-        &self.exit_cause
-    }
+    #[error("Worker address related environment variable is missing")]
+    PostComputeWorkerAddressMissing,
 }

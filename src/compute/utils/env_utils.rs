@@ -1,4 +1,4 @@
-use crate::compute::errors::{PostComputeError, ReplicateStatusCause};
+use crate::compute::errors::ReplicateStatusCause;
 use std::env;
 
 pub enum TeeSessionEnvironmentVariable {
@@ -24,9 +24,9 @@ impl TeeSessionEnvironmentVariable {
 pub fn get_env_var_or_error(
     env_var: TeeSessionEnvironmentVariable,
     status_cause_if_missing: ReplicateStatusCause,
-) -> Result<String, PostComputeError> {
+) -> Result<String, ReplicateStatusCause> {
     match env::var(env_var.name()) {
         Ok(value) if !value.is_empty() => Ok(value),
-        _ => Err(PostComputeError::new(status_cause_if_missing)),
+        _ => Err(status_cause_if_missing),
     }
 }
