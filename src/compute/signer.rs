@@ -1,5 +1,5 @@
 use crate::compute::{
-    errors::ReplicateStatusCause::{self, *},
+    errors::ReplicateStatusCause,
     utils::{
         env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
         hash_utils::{concatenate_and_hash, hex_string_to_byte_array},
@@ -22,7 +22,7 @@ use alloy_signer_local::PrivateKeySigner;
 /// # Returns
 ///
 /// * `Ok(String)` - The signature as a hexadecimal string if successful
-/// * `Err(PostComputeError)` - An error if the private key is invalid or if signing fails
+/// * `Err(ReplicateStatusCause)` - An error if the private key is invalid or if signing fails
 ///
 /// # Errors
 ///
@@ -47,11 +47,11 @@ pub fn sign_enclave_challenge(
 ) -> Result<String, ReplicateStatusCause> {
     let signer: PrivateKeySigner = enclave_challenge_private_key
         .parse::<PrivateKeySigner>()
-        .map_err(|_| PostComputeInvalidEnclaveChallengePrivateKey)?;
+        .map_err(|_| ReplicateStatusCause::PostComputeInvalidEnclaveChallengePrivateKey)?;
 
     let signature: Signature = signer
         .sign_message_sync(&hex_string_to_byte_array(message_hash))
-        .map_err(|_| PostComputeInvalidTeeSignature)?;
+        .map_err(|_| ReplicateStatusCause::PostComputeInvalidTeeSignature)?;
 
     Ok(signature.to_string())
 }
@@ -69,7 +69,7 @@ pub fn sign_enclave_challenge(
 /// # Returns
 ///
 /// * `Ok(String)` - The challenge signature as a hexadecimal string if successful
-/// * `Err(PostComputeError)` - An error if required environment variables are missing or if signing fails
+/// * `Err(ReplicateStatusCause)` - An error if required environment variables are missing or if signing fails
 ///
 /// # Errors
 ///
@@ -100,11 +100,11 @@ pub fn sign_enclave_challenge(
 pub fn get_challenge(chain_task_id: &str) -> Result<String, ReplicateStatusCause> {
     let worker_address: String = get_env_var_or_error(
         TeeSessionEnvironmentVariable::SIGN_WORKER_ADDRESS,
-        PostComputeWorkerAddressMissing,
+        ReplicateStatusCause::PostComputeWorkerAddressMissing,
     )?;
     let tee_challenge_private_key: String = get_env_var_or_error(
         TeeSessionEnvironmentVariable::SIGN_TEE_CHALLENGE_PRIVATE_KEY,
-        PostComputeTeeChallengePrivateKeyMissing,
+        ReplicateStatusCause::PostComputeTeeChallengePrivateKeyMissing,
     )?;
     let message_hash: String = concatenate_and_hash(&[chain_task_id, &worker_address]);
     sign_enclave_challenge(&message_hash, &tee_challenge_private_key)
@@ -113,7 +113,6 @@ pub fn get_challenge(chain_task_id: &str) -> Result<String, ReplicateStatusCause
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compute::utils::env_utils::TeeSessionEnvironmentVariable::*;
     use temp_env::with_vars;
 
     const CHAIN_TASK_ID: &str = "0x123456789abcdef";
@@ -141,7 +140,7 @@ mod tests {
         assert!(
             matches!(
                 result,
-                Err(err) if err == PostComputeInvalidEnclaveChallengePrivateKey
+                Err(err) if err == ReplicateStatusCause::PostComputeInvalidEnclaveChallengePrivateKey
             ),
             "Should return missing TEE challenge private key error"
         );
@@ -151,9 +150,12 @@ mod tests {
     fn should_get_challenge() {
         with_vars(
             vec![
-                (SIGN_WORKER_ADDRESS.name(), Some(WORKER_ADDRESS)),
                 (
-                    SIGN_TEE_CHALLENGE_PRIVATE_KEY.name(),
+                    TeeSessionEnvironmentVariable::SIGN_WORKER_ADDRESS.name(),
+                    Some(WORKER_ADDRESS),
+                ),
+                (
+                    TeeSessionEnvironmentVariable::SIGN_TEE_CHALLENGE_PRIVATE_KEY.name(),
                     Some(ENCLAVE_CHALLENGE_PRIVATE_KEY),
                 ),
             ],
@@ -181,9 +183,12 @@ mod tests {
     fn should_fail_on_missing_worker_address_env_var() {
         with_vars(
             vec![
-                (SIGN_WORKER_ADDRESS.name(), None),
                 (
-                    SIGN_TEE_CHALLENGE_PRIVATE_KEY.name(),
+                    TeeSessionEnvironmentVariable::SIGN_WORKER_ADDRESS.name(),
+                    None,
+                ),
+                (
+                    TeeSessionEnvironmentVariable::SIGN_TEE_CHALLENGE_PRIVATE_KEY.name(),
                     Some(ENCLAVE_CHALLENGE_PRIVATE_KEY),
                 ),
             ],
@@ -192,7 +197,7 @@ mod tests {
                 assert!(
                     matches!(
                         result,
-                        Err(err) if err == PostComputeWorkerAddressMissing
+                        Err(err) if err == ReplicateStatusCause::PostComputeWorkerAddressMissing
                     ),
                     "Should return missing worker address error"
                 );
@@ -204,15 +209,21 @@ mod tests {
     fn should_fail_on_missing_private_key_env_var() {
         with_vars(
             vec![
-                (SIGN_WORKER_ADDRESS.name(), Some(WORKER_ADDRESS)),
-                (SIGN_TEE_CHALLENGE_PRIVATE_KEY.name(), None),
+                (
+                    TeeSessionEnvironmentVariable::SIGN_WORKER_ADDRESS.name(),
+                    Some(WORKER_ADDRESS),
+                ),
+                (
+                    TeeSessionEnvironmentVariable::SIGN_TEE_CHALLENGE_PRIVATE_KEY.name(),
+                    None,
+                ),
             ],
             || {
                 let result = get_challenge(CHAIN_TASK_ID);
                 assert!(
                     matches!(
                         result,
-                        Err(err) if err == PostComputeTeeChallengePrivateKeyMissing
+                        Err(err) if err == ReplicateStatusCause::PostComputeTeeChallengePrivateKeyMissing
                     ),
                     "Should return missing private key error"
                 );
