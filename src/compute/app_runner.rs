@@ -183,12 +183,6 @@ pub fn run_post_compute(chain_task_id: &str) -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::worker_api::ExitMessage;
-    use crate::compute::{
-        errors::{PostComputeError, ReplicateStatusCause},
-        utils::env_utils::TeeSessionEnvironmentVariable::*,
-    };
-    use std::error::Error;
     use temp_env::with_vars;
 
     struct MockRunner {
@@ -262,95 +256,143 @@ mod tests {
 
     #[test]
     fn start_return_valid_exit_code_when_ran() {
-        with_vars(vec![(IEXEC_TASK_ID.name(), Some("0x123"))], || {
-            let result = start();
-            assert!(
-                result == 0 || result == 1 || result == 2 || result == 3,
-                "start() should return a valid exit code"
-            );
-        });
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
+                Some("0x123"),
+            )],
+            || {
+                let result = start();
+                assert!(
+                    result == 0 || result == 1 || result == 2 || result == 3,
+                    "start() should return a valid exit code"
+                );
+            },
+        );
     }
 
     #[test]
     fn start_return_3_when_task_id_missing() {
-        with_vars(vec![(IEXEC_TASK_ID.name(), None::<&str>)], || {
-            let runner = MockRunner::new();
-            let result = start_with_runner(&runner);
-            assert_eq!(result, 3, "Should return 3 when chain task ID is missing");
-        });
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
+                None::<&str>,
+            )],
+            || {
+                let runner = MockRunner::new();
+                let result = start_with_runner(&runner);
+                assert_eq!(result, 3, "Should return 3 when chain task ID is missing");
+            },
+        );
     }
 
     #[test]
     fn start_return_3_when_empty_task_id() {
-        with_vars(vec![(IEXEC_TASK_ID.name(), Some(""))], || {
-            let runner = MockRunner::new();
-            let result = start_with_runner(&runner);
-            assert_eq!(result, 3, "Should return 3 when chain task ID is empty");
-        });
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
+                Some(""),
+            )],
+            || {
+                let runner = MockRunner::new();
+                let result = start_with_runner(&runner);
+                assert_eq!(result, 3, "Should return 3 when chain task ID is empty");
+            },
+        );
     }
 
     #[test]
     fn start_return_0_when_successful() {
-        with_vars(vec![(IEXEC_TASK_ID.name(), Some("0x0"))], || {
-            let runner = MockRunner::new();
-            let result = start_with_runner(&runner);
-            assert_eq!(result, 0, "Should return 0 on successful execution");
-        });
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
+                Some("0x0"),
+            )],
+            || {
+                let runner = MockRunner::new();
+                let result = start_with_runner(&runner);
+                assert_eq!(result, 0, "Should return 0 on successful execution");
+            },
+        );
     }
 
     #[test]
     fn start_return_1_when_fail_with_known_cause() {
-        with_vars(vec![(IEXEC_TASK_ID.name(), Some("0x0"))], || {
-            let runner = MockRunner::new().with_run_post_compute_failure(Some(
-                ReplicateStatusCause::PostComputeInvalidTeeSignature,
-            ));
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
+                Some("0x0"),
+            )],
+            || {
+                let runner = MockRunner::new().with_run_post_compute_failure(Some(
+                    ReplicateStatusCause::PostComputeInvalidTeeSignature,
+                ));
 
-            let result = start_with_runner(&runner);
-            assert_eq!(
-                result, 1,
-                "Should return 1 when error is reported successfully"
-            );
-        });
+                let result = start_with_runner(&runner);
+                assert_eq!(
+                    result, 1,
+                    "Should return 1 when error is reported successfully"
+                );
+            },
+        );
     }
 
     #[test]
     fn start_return_1_when_fail_with_unknown_cause() {
-        with_vars(vec![(IEXEC_TASK_ID.name(), Some("0x0"))], || {
-            let runner = MockRunner::new().with_run_post_compute_failure(None);
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
+                Some("0x0"),
+            )],
+            || {
+                let runner = MockRunner::new().with_run_post_compute_failure(None);
 
-            let result = start_with_runner(&runner);
-            assert_eq!(
-                result, 1,
-                "Should return 1 when unknown error is reported successfully"
-            );
-        });
+                let result = start_with_runner(&runner);
+                assert_eq!(
+                    result, 1,
+                    "Should return 1 when unknown error is reported successfully"
+                );
+            },
+        );
     }
 
     #[test]
     fn start_return_2_when_exit_cause_not_transmitted() {
-        with_vars(vec![(IEXEC_TASK_ID.name(), Some("0x0"))], || {
-            let runner = MockRunner::new()
-                .with_run_post_compute_failure(Some(
-                    ReplicateStatusCause::PostComputeInvalidTeeSignature,
-                ))
-                .with_send_exit_cause_failure();
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
+                Some("0x0"),
+            )],
+            || {
+                let runner = MockRunner::new()
+                    .with_run_post_compute_failure(Some(
+                        ReplicateStatusCause::PostComputeInvalidTeeSignature,
+                    ))
+                    .with_send_exit_cause_failure();
 
-            let result = start_with_runner(&runner);
-            assert_eq!(result, 2, "Should return 2 when error reporting fails");
-        });
+                let result = start_with_runner(&runner);
+                assert_eq!(result, 2, "Should return 2 when error reporting fails");
+            },
+        );
     }
 
     #[test]
     fn start_return_2_when_get_challenge_fails() {
-        with_vars(vec![(IEXEC_TASK_ID.name(), Some("0x0"))], || {
-            let runner = MockRunner::new()
-                .with_run_post_compute_failure(Some(
-                    ReplicateStatusCause::PostComputeInvalidTeeSignature,
-                ))
-                .with_get_challenge_failure();
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
+                Some("0x0"),
+            )],
+            || {
+                let runner = MockRunner::new()
+                    .with_run_post_compute_failure(Some(
+                        ReplicateStatusCause::PostComputeInvalidTeeSignature,
+                    ))
+                    .with_get_challenge_failure();
 
-            let result = start_with_runner(&runner);
-            assert_eq!(result, 2, "Should return 2 when signer service fails");
-        });
+                let result = start_with_runner(&runner);
+                assert_eq!(result, 2, "Should return 2 when signer service fails");
+            },
+        );
     }
 }
