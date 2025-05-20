@@ -1,5 +1,7 @@
 use crate::api::worker_api::{ExitMessage, WorkerApiClient};
+use crate::compute::computed_file::build_result_digest_in_computed_file;
 use crate::compute::{
+    computed_file::read_computed_file,
     errors::ReplicateStatusCause,
     signer::get_challenge,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
@@ -41,8 +43,32 @@ impl DefaultPostComputeRunner {
 }
 
 impl PostComputeRunnerInterface for DefaultPostComputeRunner {
-    fn run_post_compute(&self, _chain_task_id: &str) -> Result<(), Box<dyn Error>> {
-        Err("run_post_compute not implemented yet".into())
+    fn run_post_compute(&self, chain_task_id: &str) -> Result<(), Box<dyn Error>> {
+        let should_callback: bool = match get_env_var_or_error(
+            TeeSessionEnvironmentVariable::RESULT_STORAGE_CALLBACK,
+            ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO: Update this error cause to a more specific one
+        ) {
+            Ok(value) => match value.parse::<bool>() {
+                Ok(parsed_value) => parsed_value,
+                Err(e) => {
+                    error!(
+                        "Failed to parse RESULT_STORAGE_CALLBACK environment variable as a boolean [callback_env_var:{}]",
+                        value
+                    );
+                    return Err(Box::new(e));
+                }
+            },
+            Err(e) => {
+                error!("Failed to get RESULT_STORAGE_CALLBACK environment variable");
+                return Err(Box::new(e));
+            }
+        };
+
+        let mut computed_file = read_computed_file(chain_task_id, "/iexec_out").unwrap();
+        build_result_digest_in_computed_file(&mut computed_file, should_callback)
+            .expect("Failed to build result digest");
+
+        Err("run_post_compute not fully implemented yet".into())
     }
 
     fn get_challenge(&self, chain_task_id: &str) -> Result<String, ReplicateStatusCause> {

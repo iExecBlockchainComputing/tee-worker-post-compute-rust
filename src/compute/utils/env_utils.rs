@@ -3,20 +3,22 @@ use std::env;
 
 pub enum TeeSessionEnvironmentVariable {
     IEXEC_TASK_ID,
-    WORKER_HOST_ENV_VAR,
-    SIGN_WORKER_ADDRESS,
+    RESULT_STORAGE_CALLBACK,
     SIGN_TEE_CHALLENGE_PRIVATE_KEY,
+    SIGN_WORKER_ADDRESS,
+    WORKER_HOST_ENV_VAR,
 }
 
 impl TeeSessionEnvironmentVariable {
     pub fn name(&self) -> &str {
         match self {
             TeeSessionEnvironmentVariable::IEXEC_TASK_ID => "IEXEC_TASK_ID",
-            TeeSessionEnvironmentVariable::WORKER_HOST_ENV_VAR => "WORKER_HOST",
-            TeeSessionEnvironmentVariable::SIGN_WORKER_ADDRESS => "SIGN_WORKER_ADDRESS",
+            TeeSessionEnvironmentVariable::RESULT_STORAGE_CALLBACK => "RESULT_STORAGE_CALLBACK",
             TeeSessionEnvironmentVariable::SIGN_TEE_CHALLENGE_PRIVATE_KEY => {
                 "SIGN_TEE_CHALLENGE_PRIVATE_KEY"
             }
+            TeeSessionEnvironmentVariable::SIGN_WORKER_ADDRESS => "SIGN_WORKER_ADDRESS",
+            TeeSessionEnvironmentVariable::WORKER_HOST_ENV_VAR => "WORKER_HOST",
         }
     }
 }

@@ -5,6 +5,8 @@ use thiserror::Error;
 #[serde(rename_all(serialize = "SCREAMING_SNAKE_CASE"))]
 #[allow(clippy::enum_variant_names)]
 pub enum ReplicateStatusCause {
+    #[error("computed.json file missing")]
+    PostComputeComputedFileNotFound,
     #[error("Task ID related environment variable is missing")]
     PostComputeTaskIdMissing,
     #[error("Unexpected error occurred")]
@@ -13,6 +15,8 @@ pub enum ReplicateStatusCause {
     PostComputeInvalidEnclaveChallengePrivateKey,
     #[error("Invalid TEE signature")]
     PostComputeInvalidTeeSignature,
+    #[error("Empty resultDigest")]
+    PostComputeResultDigestComputationFailed,
     #[error("Tee challenge private key related environment variable is missing")]
     PostComputeTeeChallengePrivateKeyMissing,
     #[error("Worker address related environment variable is missing")]

@@ -41,6 +41,10 @@ pub fn sha256(input: String) -> String {
     format!("0x{}", digest(input))
 }
 
+pub fn keccak256(input: String) -> String {
+    format!("0x{:?}", Keccak256::digest(input))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
