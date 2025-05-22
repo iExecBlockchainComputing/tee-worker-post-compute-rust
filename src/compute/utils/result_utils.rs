@@ -7,6 +7,45 @@ use std::{
     path::Path,
 };
 
+/// Computes the result digest for web3 tasks using keccak256 hashing.
+///
+/// This function is used for tasks that involve smart contract callbacks. It computes
+/// a keccak256 hash of the callback data, which is the standard hashing algorithm
+/// used in Ethereum and other EVM-compatible blockchains.
+///
+/// # Arguments
+///
+/// * `computed_file` - A reference to the [`ComputedFile`] containing the callback data
+///
+/// # Returns
+///
+/// * `String` - The keccak256 hash of the callback data in hexadecimal format (prefixed with "0x")
+///   or an empty string if the computation fails
+///
+/// # Behavior
+///
+/// The function will return an empty string in the following cases:
+/// * The task ID is missing from the computed file
+/// * The callback data is missing, empty, or None
+///
+/// # Example
+///
+/// ```
+/// use crate::compute::{computed_file::ComputedFile, utils::result_utils::compute_web3_result_digest};
+///
+/// let computed_file = ComputedFile {
+///     task_id: Some("0x123".to_string()),
+///     callback_data: Some("0x0000000000000000000000000000000000000000000000000000000000000001".to_string()),
+///     deterministic_output_path: None,
+///     result_digest: None,
+///     enclave_signature: None,
+///     error_message: None,
+/// };
+///
+/// let digest = compute_web3_result_digest(&computed_file);
+/// println!("Web3 result digest: {}", digest);
+/// // Output: Web3 result digest: 0xcb371be217faa47dab94e0d0ff0840c6cbf41645f0dc1a6ae3f34447155a76f3
+/// ```
 pub fn compute_web3_result_digest(computed_file: &ComputedFile) -> String {
     if computed_file.task_id.is_none() {
         return "".to_string();
@@ -26,6 +65,49 @@ pub fn compute_web3_result_digest(computed_file: &ComputedFile) -> String {
     keccak256(callback_data)
 }
 
+/// Computes the result digest for web2 tasks using SHA256 hashing of output files.
+///
+/// This function is used for traditional tasks that produce file outputs. It computes
+/// a SHA256-based digest of the files in the deterministic output path. The computation
+/// method depends on whether the output is a single file or a directory tree.
+///
+/// # Arguments
+///
+/// * `computed_file` - A reference to the [`ComputedFile`] containing the output path information
+///
+/// # Returns
+///
+/// * `String` - The SHA256-based digest of the output files in hexadecimal format (prefixed with "0x")
+///   or an empty string if the computation fails
+///
+/// # Behavior
+///
+/// The function will return an empty string in the following cases:
+/// * The deterministic output path is missing, empty, or None
+/// * The specified path does not exist on the filesystem
+/// * File reading or hashing operations fail
+///
+/// The digest computation follows these rules:
+/// * **Single file**: Direct SHA256 hash of the file content
+/// * **Directory**: Combined hash of all files in the directory (sorted by filename for consistency)
+///
+/// # Example
+///
+/// ```
+/// use crate::compute::{computed_file::ComputedFile, utils::result_utils::compute_web2_result_digest};
+///
+/// let computed_file = ComputedFile {
+///     task_id: Some("0x123".to_string()),
+///     callback_data: None,
+///     deterministic_output_path: Some("/iexec_out/results".to_string()),
+///     result_digest: None,
+///     enclave_signature: None,
+///     error_message: None,
+/// };
+///
+/// let digest = compute_web2_result_digest(&computed_file);
+/// println!("Web2 result digest: {}", digest);
+/// ```
 pub fn compute_web2_result_digest(computed_file: &ComputedFile) -> String {
     let host_deterministic_output_path = match &computed_file.deterministic_output_path {
         Some(path) => {
@@ -55,6 +137,42 @@ pub fn compute_web2_result_digest(computed_file: &ComputedFile) -> String {
     get_file_tree_sha256(host_deterministic_output_path)
 }
 
+/// Computes the SHA256 hash of a single file's content.
+///
+/// This function reads the entire content of a file and computes its SHA256 hash.
+/// It includes validation to ensure the file exists, is readable, and contains data.
+///
+/// # Arguments
+///
+/// * `file_path` - A reference to the [`Path`] of the file to hash
+///
+/// # Returns
+///
+/// * `String` - The SHA256 hash of the file content in hexadecimal format (prefixed with "0x")
+///   or an empty string if the operation fails
+///
+/// # Behavior
+///
+/// The function will return an empty string in the following cases:
+/// * The file does not exist or cannot be read
+/// * The file is empty (contains no data)
+/// * I/O errors occur during file reading
+///
+/// # Example
+///
+/// ```
+/// use std::path::Path;
+/// use crate::compute::utils::result_utils::sha256_file;
+///
+/// let file_path = Path::new("/path/to/result.txt");
+/// let hash = sha256_file(&file_path);
+///
+/// if !hash.is_empty() {
+///     println!("File hash: {}", hash);
+/// } else {
+///     println!("Failed to compute file hash");
+/// }
+/// ```
 pub fn sha256_file(file_path: &Path) -> String {
     let data = match fs::read(file_path) {
         Ok(data) => {
@@ -79,15 +197,58 @@ pub fn sha256_file(file_path: &Path) -> String {
     sha256(data)
 }
 
+/// Computes the SHA256-based digest of a file tree (directory or single file).
+///
+/// This function provides a unified way to compute digests for both single files and
+/// directory trees. For directories, it ensures deterministic results by sorting
+/// files alphabetically before computing the combined hash.
+///
+/// # Arguments
+///
+/// * `file_tree_path` - A reference to the [`Path`] of the file or directory to process
+///
+/// # Returns
+///
+/// * `String` - The computed digest in hexadecimal format (prefixed with "0x")
+///   or an empty string if the operation fails
+///
+/// # Behavior
+///
+/// The function handles different input types as follows:
+/// * **Single file**: Returns the SHA256 hash of the file content
+/// * **Directory**: Computes SHA256 hash of each file, then combines all hashes using keccak256
+/// * **Non-existent path**: Returns an empty string
+/// * **Empty directory**: Returns an empty string
+///
+/// For directories, files are processed in alphabetical order to ensure consistent
+/// results across different filesystems and environments.
+///
+/// # Example
+///
+/// ```
+/// use std::path::Path;
+/// use crate::compute::utils::result_utils::get_file_tree_sha256;
+///
+/// // Single file
+/// let file_path = Path::new("/path/to/result.txt");
+/// let file_digest = get_file_tree_sha256(&file_path);
+///
+/// // Directory tree
+/// let dir_path = Path::new("/path/to/results/");
+/// let tree_digest = get_file_tree_sha256(&dir_path);
+///
+/// println!("File digest: {}", file_digest);
+/// println!("Tree digest: {}", tree_digest);
+/// ```
 pub fn get_file_tree_sha256(file_tree_path: &Path) -> String {
     if !file_tree_path.exists() {
         return "".to_string();
     }
-    //fileTree is a leaf, a single file
+    //file_tree_path points to a leaf, a single file
     if !file_tree_path.is_dir() {
         return sha256_file(file_tree_path);
     }
-    //fileTree is a tree, with multiple files
+    //file_tree_path points to a tree, with multiple files
     let mut entries = match fs::read_dir(file_tree_path) {
         Ok(read_dir) => match read_dir.collect::<Result<Vec<DirEntry>, Error>>() {
             Ok(entries) => {
@@ -101,7 +262,7 @@ pub fn get_file_tree_sha256(file_tree_path: &Path) -> String {
         },
         Err(_) => return "".to_string(),
     };
-    // /!\ files MUST be sorted to ensure final concatenateAndHash(..) is always the same (order matters)
+    // /!\ files MUST be sorted to ensure final concatenate_and_hash(..) is always the same (order matters)
     entries.sort_by_key(|entry| entry.path());
 
     let mut hashes_vec = Vec::new();
