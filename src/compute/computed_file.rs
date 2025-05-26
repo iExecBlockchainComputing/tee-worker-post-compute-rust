@@ -15,32 +15,22 @@ use std::{fs, path::Path};
 ///
 /// ```json
 /// {
-///   "deterministicOutputPath": "/iexec_out/result.txt",
-///   "callbackData": "0xabc123...",
-///   "taskId": "0x123456789abcdef",
-///   "resultDigest": "0x789abc...",
-///   "enclaveSignature": "0xdef456...",
-///   "errorMessage": null
+///   "deterministic-output-path": "/iexec_out/result.txt",
+///   "callback-data": "0xabc123...",
+///   "task-id": "0x123456789abcdef",
+///   "result-digest": "0x789abc...",
+///   "enclave-signature": "0xdef456...",
+///   "error-message": null
 /// }
 /// ```
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all(deserialize = "kebab-case"))]
 pub struct ComputedFile {
-    #[serde(rename = "deterministicOutputPath")]
     pub deterministic_output_path: Option<String>,
-
-    #[serde(rename = "callbackData")]
     pub callback_data: Option<String>,
-
-    #[serde(rename = "taskId")]
     pub task_id: Option<String>,
-
-    #[serde(rename = "resultDigest")]
     pub result_digest: Option<String>,
-
-    #[serde(rename = "enclaveSignature")]
     pub enclave_signature: Option<String>,
-
-    #[serde(rename = "errorMessage")]
     pub error_message: Option<String>,
 }
 
@@ -215,7 +205,7 @@ mod tests {
         let file_path = dir.path().join("computed.json");
 
         let test_json =
-            r#"{"deterministicOutputPath":"/iexec_out/result.txt","callbackData":"0xabc"}"#;
+            r#"{"deterministic-output-path":"/iexec_out/result.txt","callback-data":"0xabc"}"#;
         let mut file = fs::File::create(&file_path).unwrap();
         file.write_all(test_json.as_bytes()).unwrap();
 
@@ -290,7 +280,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("computed.json");
 
-        let test_json = r#"{"invalidJson":}"#;
+        let test_json = r#"{"invalid-json":}"#;
         let mut file = fs::File::create(&file_path).unwrap();
         file.write_all(test_json.as_bytes()).unwrap();
 
