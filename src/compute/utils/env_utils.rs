@@ -2,23 +2,23 @@ use crate::compute::errors::ReplicateStatusCause;
 use std::env;
 
 pub enum TeeSessionEnvironmentVariable {
-    IEXEC_TASK_ID,
-    RESULT_STORAGE_CALLBACK,
-    SIGN_TEE_CHALLENGE_PRIVATE_KEY,
-    SIGN_WORKER_ADDRESS,
-    WORKER_HOST_ENV_VAR,
+    IexecTaskId,
+    ResultStorageCallback,
+    SignTeeChallengePrivateKey,
+    SignWorkerAddress,
+    WorkerHostEnvVar,
 }
 
 impl TeeSessionEnvironmentVariable {
     pub fn name(&self) -> &str {
         match self {
-            TeeSessionEnvironmentVariable::IEXEC_TASK_ID => "IEXEC_TASK_ID",
-            TeeSessionEnvironmentVariable::RESULT_STORAGE_CALLBACK => "RESULT_STORAGE_CALLBACK",
-            TeeSessionEnvironmentVariable::SIGN_TEE_CHALLENGE_PRIVATE_KEY => {
+            TeeSessionEnvironmentVariable::IexecTaskId => "IEXEC_TASK_ID",
+            TeeSessionEnvironmentVariable::ResultStorageCallback => "RESULT_STORAGE_CALLBACK",
+            TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey => {
                 "SIGN_TEE_CHALLENGE_PRIVATE_KEY"
             }
-            TeeSessionEnvironmentVariable::SIGN_WORKER_ADDRESS => "SIGN_WORKER_ADDRESS",
-            TeeSessionEnvironmentVariable::WORKER_HOST_ENV_VAR => "WORKER_HOST",
+            TeeSessionEnvironmentVariable::SignWorkerAddress => "SIGN_WORKER_ADDRESS",
+            TeeSessionEnvironmentVariable::WorkerHostEnvVar => "WORKER_HOST",
         }
     }
 }
