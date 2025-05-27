@@ -45,7 +45,7 @@ impl DefaultPostComputeRunner {
 impl PostComputeRunnerInterface for DefaultPostComputeRunner {
     fn run_post_compute(&self, chain_task_id: &str) -> Result<(), Box<dyn Error>> {
         let should_callback: bool = match get_env_var_or_error(
-            TeeSessionEnvironmentVariable::RESULT_STORAGE_CALLBACK,
+            TeeSessionEnvironmentVariable::ResultStorageCallback,
             ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO: Update this error cause to a more specific one
         ) {
             Ok(value) => match value.parse::<bool>() {
@@ -120,7 +120,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
 pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
     println!("Tee worker post-compute started");
     let chain_task_id: String = match get_env_var_or_error(
-        TeeSessionEnvironmentVariable::IEXEC_TASK_ID,
+        TeeSessionEnvironmentVariable::IexecTaskId,
         ReplicateStatusCause::PostComputeTaskIdMissing,
     ) {
         Ok(id) => id,
@@ -132,7 +132,6 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
             return 3; // Exit code for missing taskID context
         }
     };
-
     match runner.run_post_compute(&chain_task_id) {
         Ok(()) => {
             info!("TEE post-compute completed");
@@ -199,11 +198,6 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
 pub fn start() -> i32 {
     let runner = DefaultPostComputeRunner::new();
     start_with_runner(&runner)
-}
-
-pub fn run_post_compute(chain_task_id: &str) -> Result<(), Box<dyn Error>> {
-    let runner = DefaultPostComputeRunner::new();
-    runner.run_post_compute(chain_task_id)
 }
 
 #[cfg(test)]
@@ -282,7 +276,7 @@ mod tests {
     fn start_return_valid_exit_code_when_ran() {
         with_vars(
             vec![(
-                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
+                TeeSessionEnvironmentVariable::IexecTaskId.name(),
                 Some("0x123"),
             )],
             || {
@@ -299,7 +293,7 @@ mod tests {
     fn start_return_3_when_task_id_missing() {
         with_vars(
             vec![(
-                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
+                TeeSessionEnvironmentVariable::IexecTaskId.name(),
                 None::<&str>,
             )],
             || {
@@ -313,10 +307,7 @@ mod tests {
     #[test]
     fn start_return_3_when_empty_task_id() {
         with_vars(
-            vec![(
-                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
-                Some(""),
-            )],
+            vec![(TeeSessionEnvironmentVariable::IexecTaskId.name(), Some(""))],
             || {
                 let runner = MockRunner::new();
                 let result = start_with_runner(&runner);
@@ -329,7 +320,7 @@ mod tests {
     fn start_return_0_when_successful() {
         with_vars(
             vec![(
-                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
+                TeeSessionEnvironmentVariable::IexecTaskId.name(),
                 Some("0x0"),
             )],
             || {
@@ -344,7 +335,7 @@ mod tests {
     fn start_return_1_when_fail_with_known_cause() {
         with_vars(
             vec![(
-                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
+                TeeSessionEnvironmentVariable::IexecTaskId.name(),
                 Some("0x0"),
             )],
             || {
@@ -365,7 +356,7 @@ mod tests {
     fn start_return_1_when_fail_with_unknown_cause() {
         with_vars(
             vec![(
-                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
+                TeeSessionEnvironmentVariable::IexecTaskId.name(),
                 Some("0x0"),
             )],
             || {
@@ -384,7 +375,7 @@ mod tests {
     fn start_return_2_when_exit_cause_not_transmitted() {
         with_vars(
             vec![(
-                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
+                TeeSessionEnvironmentVariable::IexecTaskId.name(),
                 Some("0x0"),
             )],
             || {
@@ -404,7 +395,7 @@ mod tests {
     fn start_return_2_when_get_challenge_fails() {
         with_vars(
             vec![(
-                TeeSessionEnvironmentVariable::IEXEC_TASK_ID.name(),
+                TeeSessionEnvironmentVariable::IexecTaskId.name(),
                 Some("0x0"),
             )],
             || {

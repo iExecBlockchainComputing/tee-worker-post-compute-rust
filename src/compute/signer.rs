@@ -99,11 +99,11 @@ pub fn sign_enclave_challenge(
 /// ```
 pub fn get_challenge(chain_task_id: &str) -> Result<String, ReplicateStatusCause> {
     let worker_address: String = get_env_var_or_error(
-        TeeSessionEnvironmentVariable::SIGN_WORKER_ADDRESS,
+        TeeSessionEnvironmentVariable::SignWorkerAddress,
         ReplicateStatusCause::PostComputeWorkerAddressMissing,
     )?;
     let tee_challenge_private_key: String = get_env_var_or_error(
-        TeeSessionEnvironmentVariable::SIGN_TEE_CHALLENGE_PRIVATE_KEY,
+        TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey,
         ReplicateStatusCause::PostComputeTeeChallengePrivateKeyMissing,
     )?;
     let message_hash: String = concatenate_and_hash(&[chain_task_id, &worker_address]);
@@ -151,11 +151,11 @@ mod tests {
         with_vars(
             vec![
                 (
-                    TeeSessionEnvironmentVariable::SIGN_WORKER_ADDRESS.name(),
+                    TeeSessionEnvironmentVariable::SignWorkerAddress.name(),
                     Some(WORKER_ADDRESS),
                 ),
                 (
-                    TeeSessionEnvironmentVariable::SIGN_TEE_CHALLENGE_PRIVATE_KEY.name(),
+                    TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey.name(),
                     Some(ENCLAVE_CHALLENGE_PRIVATE_KEY),
                 ),
             ],
@@ -184,11 +184,11 @@ mod tests {
         with_vars(
             vec![
                 (
-                    TeeSessionEnvironmentVariable::SIGN_WORKER_ADDRESS.name(),
+                    TeeSessionEnvironmentVariable::SignWorkerAddress.name(),
                     None,
                 ),
                 (
-                    TeeSessionEnvironmentVariable::SIGN_TEE_CHALLENGE_PRIVATE_KEY.name(),
+                    TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey.name(),
                     Some(ENCLAVE_CHALLENGE_PRIVATE_KEY),
                 ),
             ],
@@ -210,11 +210,11 @@ mod tests {
         with_vars(
             vec![
                 (
-                    TeeSessionEnvironmentVariable::SIGN_WORKER_ADDRESS.name(),
+                    TeeSessionEnvironmentVariable::SignWorkerAddress.name(),
                     Some(WORKER_ADDRESS),
                 ),
                 (
-                    TeeSessionEnvironmentVariable::SIGN_TEE_CHALLENGE_PRIVATE_KEY.name(),
+                    TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey.name(),
                     None,
                 ),
             ],
