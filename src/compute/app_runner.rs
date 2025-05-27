@@ -132,7 +132,6 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
             return 3; // Exit code for missing taskID context
         }
     };
-
     match runner.run_post_compute(&chain_task_id) {
         Ok(()) => {
             info!("TEE post-compute completed");
@@ -199,11 +198,6 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
 pub fn start() -> i32 {
     let runner = DefaultPostComputeRunner::new();
     start_with_runner(&runner)
-}
-
-pub fn run_post_compute(chain_task_id: &str) -> Result<(), Box<dyn Error>> {
-    let runner = DefaultPostComputeRunner::new();
-    runner.run_post_compute(chain_task_id)
 }
 
 #[cfg(test)]
