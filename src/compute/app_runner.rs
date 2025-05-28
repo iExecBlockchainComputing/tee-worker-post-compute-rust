@@ -1,10 +1,11 @@
 use crate::api::worker_api::{ExitMessage, WorkerApiClient};
-use crate::compute::computed_file::build_result_digest_in_computed_file;
 use crate::compute::{
-    computed_file::read_computed_file,
+    computed_file::{
+        build_result_digest_in_computed_file, read_computed_file, sign_computed_file, ComputedFile,
+    },
     errors::ReplicateStatusCause,
     signer::get_challenge,
-    utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
+    utils::env_utils::{get_env_var_or_error, TeeSessionEnvironmentVariable},
 };
 use log::{error, info};
 use std::error::Error;
@@ -23,6 +24,7 @@ pub trait PostComputeRunnerInterface {
         chain_task_id: &str,
         exit_message: &ExitMessage,
     ) -> Result<(), reqwest::Error>;
+    fn send_computed_file(&self, computed_file: &ComputedFile) -> Result<(), ReplicateStatusCause>;
 }
 
 /// Production implementation of [`PostComputeRunnerInterface`]
@@ -64,11 +66,19 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
             }
         };
 
-        let mut computed_file = read_computed_file(chain_task_id, "/iexec_out").unwrap();
-        build_result_digest_in_computed_file(&mut computed_file, should_callback)
-            .expect("Failed to build result digest");
+        let mut computed_file = read_computed_file(chain_task_id, "/iexec_out")?;
+        build_result_digest_in_computed_file(&mut computed_file, should_callback)?;
+        sign_computed_file(&mut computed_file).map_err(Box::new)?;
 
-        Err("run_post_compute not fully implemented yet".into())
+        /* Still missing from Java
+        if (!shouldCallback) {
+            web2ResultService.encryptAndUploadResult(computedFile);
+        }
+        */
+
+        self.send_computed_file(&computed_file).map_err(Box::new)?;
+
+        Ok(())
     }
 
     fn get_challenge(&self, chain_task_id: &str) -> Result<String, ReplicateStatusCause> {
@@ -83,6 +93,29 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
     ) -> Result<(), reqwest::Error> {
         self.worker_api_client
             .send_exit_cause_for_post_compute_stage(authorization, chain_task_id, exit_message)
+    }
+
+    fn send_computed_file(&self, computed_file: &ComputedFile) -> Result<(), ReplicateStatusCause> {
+        info!(
+            "send_computed_file stage started [computedFile:{:#?}]",
+            &computed_file
+        );
+        let task_id = computed_file.task_id.as_ref().unwrap();
+        let authorization = get_challenge(task_id)?;
+        match self.worker_api_client.send_computed_file_to_host(
+            &authorization,
+            task_id,
+            computed_file,
+        ) {
+            Ok(_) => {
+                info!("send_computed_file stage completed");
+                Ok(())
+            }
+            Err(_) => {
+                error!("send_computed_file stage failed [task_id:{}]", task_id);
+                Err(ReplicateStatusCause::PostComputeSendComputedFileFailed)
+            }
+        }
     }
 }
 
@@ -209,6 +242,7 @@ mod tests {
         run_post_compute_success: bool,
         get_challenge_success: bool,
         send_exit_cause_success: bool,
+        send_computed_file_success: bool,
         error_cause: Option<ReplicateStatusCause>,
     }
 
@@ -218,6 +252,7 @@ mod tests {
                 run_post_compute_success: true,
                 get_challenge_success: true,
                 send_exit_cause_success: true,
+                send_computed_file_success: true,
                 error_cause: None,
             }
         }
@@ -235,6 +270,11 @@ mod tests {
 
         fn with_send_exit_cause_failure(mut self) -> Self {
             self.send_exit_cause_success = false;
+            self
+        }
+
+        fn with_send_computed_file_success(mut self) -> Self {
+            self.send_computed_file_success = false;
             self
         }
     }
@@ -268,6 +308,17 @@ mod tests {
                 Ok(())
             } else {
                 Err(reqwest::blocking::get("invalid_url").unwrap_err())
+            }
+        }
+
+        fn send_computed_file(
+            &self,
+            _exit_message: &ComputedFile,
+        ) -> Result<(), ReplicateStatusCause> {
+            if self.send_computed_file_success {
+                Ok(())
+            } else {
+                Err(ReplicateStatusCause::PostComputeSendComputedFileFailed)
             }
         }
     }

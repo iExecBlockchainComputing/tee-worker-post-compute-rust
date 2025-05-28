@@ -1,4 +1,7 @@
 use crate::compute::errors::ReplicateStatusCause;
+use crate::compute::signer::sign_enclave_challenge;
+use crate::compute::utils::env_utils::{get_env_var_or_error, TeeSessionEnvironmentVariable};
+use crate::compute::utils::hash_utils::concatenate_and_hash;
 use crate::compute::utils::result_utils::{compute_web2_result_digest, compute_web3_result_digest};
 use log::{error, info};
 use serde::{Deserialize, Serialize};
@@ -23,7 +26,7 @@ use std::{fs, path::Path};
 ///   "error-message": null
 /// }
 /// ```
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all(deserialize = "kebab-case"))]
 pub struct ComputedFile {
     pub deterministic_output_path: Option<String>,
@@ -191,11 +194,39 @@ pub fn build_result_digest_in_computed_file(
     Ok(())
 }
 
+pub fn sign_computed_file(computed_file: &mut ComputedFile) -> Result<(), ReplicateStatusCause> {
+    info!("Signer stage started");
+    let worker_address: String = get_env_var_or_error(
+        TeeSessionEnvironmentVariable::SignWorkerAddress,
+        ReplicateStatusCause::PostComputeWorkerAddressMissing,
+    )?;
+    let task_id = computed_file.task_id.as_ref().unwrap();
+    let result_digest = computed_file.result_digest.as_ref().unwrap();
+
+    let result_hash = concatenate_and_hash(&[task_id, result_digest]);
+    let result_seal = concatenate_and_hash(&[&worker_address, task_id, result_digest]);
+    let message_hash = concatenate_and_hash(&[&result_hash, &result_seal]);
+
+    let tee_challenge_private_key: String = get_env_var_or_error(
+        TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey,
+        ReplicateStatusCause::PostComputeTeeChallengePrivateKeyMissing,
+    )?;
+
+    let enclave_signature = sign_enclave_challenge(&message_hash, &tee_challenge_private_key)?;
+
+    computed_file.enclave_signature = Some(enclave_signature);
+    info!("Signer stage completed");
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::Write;
+    use temp_env::with_vars;
     use tempfile::tempdir;
+
+    const TEST_TASK_ID: &str = "0x123456789abcdef";
 
     // region read_computed_file
     #[test]
@@ -209,11 +240,11 @@ mod tests {
         let mut file = fs::File::create(&file_path).unwrap();
         file.write_all(test_json.as_bytes()).unwrap();
 
-        let result = read_computed_file("0x123", dir_path);
+        let result = read_computed_file(TEST_TASK_ID, dir_path);
         assert!(result.is_ok());
 
         let computed_file = result.unwrap();
-        assert_eq!(computed_file.task_id, Some("0x123".to_string()));
+        assert_eq!(computed_file.task_id, Some(TEST_TASK_ID.to_string()));
         assert_eq!(
             computed_file.deterministic_output_path,
             Some("/iexec_out/result.txt".to_string())
@@ -234,7 +265,7 @@ mod tests {
 
     #[test]
     fn read_computed_file_returns_error_when_computed_file_dir_is_empty() {
-        let result = read_computed_file("0x123", "");
+        let result = read_computed_file(TEST_TASK_ID, "");
 
         assert!(result.is_err());
         assert_eq!(
@@ -248,7 +279,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let dir_path = dir.path().to_str().unwrap();
 
-        let result = read_computed_file("0x123", dir_path);
+        let result = read_computed_file(TEST_TASK_ID, dir_path);
 
         assert!(result.is_err());
         assert_eq!(
@@ -266,7 +297,7 @@ mod tests {
         let mut file = fs::File::create(&file_path).unwrap();
         file.write_all(test_json.as_bytes()).unwrap();
 
-        let result = read_computed_file("0x123", dir.path().to_str().unwrap());
+        let result = read_computed_file(TEST_TASK_ID, dir.path().to_str().unwrap());
 
         assert!(result.is_err());
         assert_eq!(
@@ -284,7 +315,7 @@ mod tests {
         let mut file = fs::File::create(&file_path).unwrap();
         file.write_all(test_json.as_bytes()).unwrap();
 
-        let result = read_computed_file("0x123", dir.path().to_str().unwrap());
+        let result = read_computed_file(TEST_TASK_ID, dir.path().to_str().unwrap());
 
         assert!(result.is_err());
         assert_eq!(
@@ -298,14 +329,11 @@ mod tests {
     #[test]
     fn build_result_digest_in_computed_file_computes_web3_digest_when_is_callback_mode_is_true() {
         let mut computed_file = ComputedFile {
-            task_id: Some("0x123".to_string()),
+            task_id: Some(TEST_TASK_ID.to_string()),
             callback_data: Some(
                 "0x0000000000000000000000000000000000000000000000000000000000000001".to_string(),
             ),
-            deterministic_output_path: None,
-            result_digest: None,
-            enclave_signature: None,
-            error_message: None,
+            ..Default::default()
         };
 
         let result = build_result_digest_in_computed_file(&mut computed_file, true);
@@ -328,12 +356,9 @@ mod tests {
         file.write_all(b"test content").unwrap();
 
         let mut computed_file = ComputedFile {
-            task_id: Some("0x123".to_string()),
-            callback_data: None,
+            task_id: Some(TEST_TASK_ID.to_string()),
             deterministic_output_path: Some(output_dir.to_str().unwrap().to_string()),
-            result_digest: None,
-            enclave_signature: None,
-            error_message: None,
+            ..Default::default()
         };
 
         let result = build_result_digest_in_computed_file(&mut computed_file, false);
@@ -345,12 +370,9 @@ mod tests {
     #[test]
     fn build_result_digest_in_computed_file_returns_error_when_result_digest_is_empty() {
         let mut computed_file = ComputedFile {
-            task_id: Some("0x123".to_string()),
-            callback_data: None,
+            task_id: Some(TEST_TASK_ID.to_string()),
             deterministic_output_path: Some("/non_existent_path".to_string()),
-            result_digest: None,
-            enclave_signature: None,
-            error_message: None,
+            ..Default::default()
         };
 
         let result = build_result_digest_in_computed_file(&mut computed_file, false);
@@ -359,6 +381,100 @@ mod tests {
         assert_eq!(
             result.unwrap_err(),
             ReplicateStatusCause::PostComputeResultDigestComputationFailed
+        );
+    }
+    // endregion
+
+    // region sign_computed_file
+    const TEST_WORKER_ADDRESS: &str = "0x1234567890abcdef1234567890abcdef12345678";
+    const TEST_TEE_CHALLENGE_PRIVATE_KEY: &str =
+        "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+    const TEST_RESULT_DIGEST: &str =
+        "0xcb371be217faa47dab94e0d0ff0840c6cbf41645f0dc1a6ae3f34447155a76f3";
+
+    #[test]
+    fn sign_computed_file_returns_signature_when_all_env_and_fields_present() {
+        with_vars(
+            vec![
+                (
+                    TeeSessionEnvironmentVariable::SignWorkerAddress.name(),
+                    Some(TEST_WORKER_ADDRESS),
+                ),
+                (
+                    TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey.name(),
+                    Some(TEST_TEE_CHALLENGE_PRIVATE_KEY),
+                ),
+            ],
+            || {
+                let mut computed_file = ComputedFile {
+                    task_id: Some(TEST_TASK_ID.to_string()),
+                    result_digest: Some(TEST_RESULT_DIGEST.to_string()),
+                    ..Default::default()
+                };
+
+                let result = sign_computed_file(&mut computed_file);
+                assert!(result.is_ok(), "Signing should be successful");
+                assert!(
+                    computed_file.enclave_signature.is_some(),
+                    "Enclave signature should be Some"
+                );
+                assert!(
+                    !computed_file.enclave_signature.as_ref().unwrap().is_empty(),
+                    "Enclave signature should not be empty"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn sign_computed_file_returns_error_when_worker_address_missing() {
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey.name(),
+                Some(TEST_TEE_CHALLENGE_PRIVATE_KEY),
+            )],
+            || {
+                let mut computed_file = ComputedFile {
+                    task_id: Some(TEST_TASK_ID.to_string()),
+                    result_digest: Some(TEST_RESULT_DIGEST.to_string()),
+                    ..Default::default()
+                };
+
+                let result = sign_computed_file(&mut computed_file);
+                assert!(
+                    matches!(
+                        result,
+                        Err(ReplicateStatusCause::PostComputeWorkerAddressMissing)
+                    ),
+                    "Should return PostComputeWorkerAddressMissing error"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn sign_computed_file_returns_error_when_tee_private_key_missing() {
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::SignWorkerAddress.name(),
+                Some(TEST_WORKER_ADDRESS),
+            )],
+            || {
+                let mut computed_file = ComputedFile {
+                    task_id: Some(TEST_TASK_ID.to_string()),
+                    result_digest: Some(TEST_RESULT_DIGEST.to_string()),
+                    ..Default::default()
+                };
+
+                let result = sign_computed_file(&mut computed_file);
+                assert!(
+                    matches!(
+                        result,
+                        Err(ReplicateStatusCause::PostComputeTeeChallengePrivateKeyMissing)
+                    ),
+                    "Should return PostComputeTeeChallengePrivateKeyMissing error"
+                );
+            },
         );
     }
     // endregion
