@@ -17,6 +17,8 @@ pub enum ReplicateStatusCause {
     PostComputeInvalidTeeSignature,
     #[error("Empty resultDigest")]
     PostComputeResultDigestComputationFailed,
+    #[error("Failed to send computed file")]
+    PostComputeSendComputedFileFailed,
     #[error("Tee challenge private key related environment variable is missing")]
     PostComputeTeeChallengePrivateKeyMissing,
     #[error("Worker address related environment variable is missing")]
