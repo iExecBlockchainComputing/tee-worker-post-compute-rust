@@ -1,9 +1,9 @@
-use crate::compute::computed_file::ComputedFile;
 use crate::compute::{
+    computed_file::ComputedFile,
     errors::ReplicateStatusCause,
-    utils::env_utils::{get_env_var_or_error, TeeSessionEnvironmentVariable},
+    utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
 };
-use reqwest::{blocking::Client, header::AUTHORIZATION, Error};
+use reqwest::{Error, blocking::Client, header::AUTHORIZATION};
 use serde::Serialize;
 
 /// Represents payload that can be sent to the worker API to report the outcome of the
@@ -87,7 +87,7 @@ impl WorkerApiClient {
             TeeSessionEnvironmentVariable::WorkerHostEnvVar,
             ReplicateStatusCause::PostComputeWorkerAddressMissing,
         )
-            .unwrap_or_else(|_| DEFAULT_WORKER_HOST.to_string());
+        .unwrap_or_else(|_| DEFAULT_WORKER_HOST.to_string());
 
         let base_url = format!("http://{}", &worker_host);
         Self::new(&base_url)
@@ -153,6 +153,46 @@ impl WorkerApiClient {
         }
     }
 
+    /// Sends the completed computation file to the worker host.
+    ///
+    /// This method transmits the computed file containing task results, signatures,
+    /// and metadata to the worker API. The computed file is sent as JSON in the
+    /// request body, allowing the worker to verify and process the computation results.
+    ///
+    /// # Arguments
+    ///
+    /// * `authorization` - The authorization token/challenge for authenticating the request
+    /// * `chain_task_id` - The blockchain task identifier associated with this computation
+    /// * `computed_file` - The computed file containing results and signatures to be sent
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the computed file was successfully sent (HTTP 2xx response)
+    /// * `Err(Error)` - If the request failed due to an HTTP error
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use crate::api::worker_api::WorkerApiClient;
+    /// use crate::compute::computed_file::ComputedFile;
+    ///
+    /// let client = WorkerApiClient::new("http://worker:13100");
+    /// let computed_file = ComputedFile {
+    ///     task_id: Some("0x123456789abcdef".to_string()),
+    ///     result_digest: Some("0xdigest".to_string()),
+    ///     enclave_signature: Some("0xsignature".to_string()),
+    ///     ..Default::default()
+    /// };
+    ///
+    /// match client.send_computed_file_to_host(
+    ///     "Bearer auth_token",
+    ///     "0x123456789abcdef",
+    ///     &computed_file,
+    /// ) {
+    ///     Ok(()) => println!("Computed file sent successfully"),
+    ///     Err(error) => eprintln!("Failed to send computed file: {}", error),
+    /// }
+    /// ```
     pub fn send_computed_file_to_host(
         &self,
         authorization: &str,
@@ -182,8 +222,8 @@ mod tests {
     use serde_json::{json, to_string};
     use temp_env::with_vars;
     use wiremock::{
-        matchers::{body_json, header, method, path}, Mock, MockServer,
-        ResponseTemplate,
+        Mock, MockServer, ResponseTemplate,
+        matchers::{body_json, header, method, path},
     };
 
     const CHALLENGE: &str = "challenge";
@@ -266,8 +306,8 @@ mod tests {
                 &exit_message,
             )
         })
-            .await
-            .expect("Task panicked");
+        .await
+        .expect("Task panicked");
 
         assert!(result.is_ok());
     }
@@ -294,8 +334,8 @@ mod tests {
                 &exit_message,
             )
         })
-            .await
-            .expect("Task panicked");
+        .await
+        .expect("Task panicked");
 
         assert!(result.is_err());
 
@@ -334,8 +374,8 @@ mod tests {
             let client = WorkerApiClient::new(&server_uri);
             client.send_computed_file_to_host(CHALLENGE, CHAIN_TASK_ID, &computed_file)
         })
-            .await
-            .expect("Task panicked");
+        .await
+        .expect("Task panicked");
 
         assert!(result.is_ok());
     }
@@ -367,13 +407,66 @@ mod tests {
             let client = WorkerApiClient::new(&server_uri);
             client.send_computed_file_to_host(CHALLENGE, CHAIN_TASK_ID, &computed_file)
         })
-            .await
-            .expect("Task panicked");
+        .await
+        .expect("Task panicked");
 
         assert!(result.is_err());
         if let Err(error) = result {
             assert_eq!(error.status().unwrap(), 500);
         }
+    }
+
+    #[tokio::test]
+    async fn should_handle_invalid_chain_task_id_in_url() {
+        let mock_server = MockServer::start().await;
+        let server_uri = mock_server.uri();
+
+        let invalid_chain_task_id = "invalid/task/id";
+        let computed_file = ComputedFile {
+            task_id: Some(invalid_chain_task_id.to_string()),
+            ..Default::default()
+        };
+
+        let result = tokio::task::spawn_blocking(move || {
+            let client = WorkerApiClient::new(&server_uri);
+            client.send_computed_file_to_host(CHALLENGE, invalid_chain_task_id, &computed_file)
+        })
+        .await
+        .expect("Task panicked");
+
+        assert!(result.is_err(), "Should fail with invalid chain task ID");
+    }
+
+    #[tokio::test]
+    async fn should_send_computed_file_with_minimal_data() {
+        let mock_server = MockServer::start().await;
+        let server_uri = mock_server.uri();
+
+        let computed_file = ComputedFile {
+            task_id: Some(CHAIN_TASK_ID.to_string()),
+            ..Default::default()
+        };
+
+        let expected_path = format!("/compute/post/{}/computed", CHAIN_TASK_ID);
+        let expected_body = json!(computed_file);
+
+        Mock::given(method("POST"))
+            .and(path(expected_path.as_str()))
+            .and(header("Authorization", CHALLENGE))
+            .and(body_json(&expected_body))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let result = tokio::task::spawn_blocking(move || {
+            let client = WorkerApiClient::new(&server_uri);
+            client.send_computed_file_to_host(CHALLENGE, CHAIN_TASK_ID, &computed_file)
+        })
+        .await
+        .expect("Task panicked");
+
+        assert!(result.is_ok());
     }
     // endregion
 }

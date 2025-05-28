@@ -1,11 +1,11 @@
 use crate::api::worker_api::{ExitMessage, WorkerApiClient};
 use crate::compute::{
     computed_file::{
-        build_result_digest_in_computed_file, read_computed_file, sign_computed_file, ComputedFile,
+        ComputedFile, build_result_digest_in_computed_file, read_computed_file, sign_computed_file,
     },
     errors::ReplicateStatusCause,
     signer::get_challenge,
-    utils::env_utils::{get_env_var_or_error, TeeSessionEnvironmentVariable},
+    utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
 };
 use log::{error, info};
 use std::error::Error;
