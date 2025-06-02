@@ -52,7 +52,7 @@ pub struct ComputedFile {
 /// * `chain_task_id` - The blockchain task identifier to associate with this computed file
 /// * `computed_file_dir` - The directory path where the computed.json file is located
 ///
-/// # Returns
+/// # Return
 ///
 /// * `Ok(ComputedFile)` - Successfully parsed computed file with task ID set
 /// * `Err(ReplicateStatusCause)` - Error if file cannot be read or parsed
