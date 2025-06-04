@@ -153,7 +153,7 @@ impl WorkerApiClient {
         }
     }
 
-    /// Sends the completed computation file to the worker host.
+    /// Sends the completed computed.json file to the worker host.
     ///
     /// This method transmits the computed file containing task results, signatures,
     /// and metadata to the worker API. The computed file is sent as JSON in the
@@ -161,7 +161,7 @@ impl WorkerApiClient {
     ///
     /// # Arguments
     ///
-    /// * `authorization` - The authorization token/challenge for authenticating the request
+    /// * `authorization` - The authorization token/challenge to validate the request on the worker side
     /// * `chain_task_id` - The blockchain task identifier associated with this computation
     /// * `computed_file` - The computed file containing results and signatures to be sent
     ///
@@ -421,7 +421,7 @@ mod tests {
         let mock_server = MockServer::start().await;
         let server_uri = mock_server.uri();
 
-        let invalid_chain_task_id = "invalid/task/id";
+        let invalid_chain_task_id = "invalidTaskId";
         let computed_file = ComputedFile {
             task_id: Some(invalid_chain_task_id.to_string()),
             ..Default::default()

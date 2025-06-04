@@ -70,12 +70,6 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
         build_result_digest_in_computed_file(&mut computed_file, should_callback)?;
         sign_computed_file(&mut computed_file).map_err(Box::new)?;
 
-        /* Still missing from Java
-        if (!shouldCallback) {
-            web2ResultService.encryptAndUploadResult(computedFile);
-        }
-        */
-
         self.send_computed_file(&computed_file).map_err(Box::new)?;
 
         Ok(())
@@ -100,7 +94,13 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
             "send_computed_file stage started [computedFile:{:#?}]",
             &computed_file
         );
-        let task_id = computed_file.task_id.as_ref().unwrap();
+        let task_id = match computed_file.task_id.as_ref() {
+            Some(id) => id,
+            None => {
+                error!("send_computed_file stage failed: task_id is missing in computed file");
+                return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
+            }
+        };
         let authorization = get_challenge(task_id)?;
         match self.worker_api_client.send_computed_file_to_host(
             &authorization,
