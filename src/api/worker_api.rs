@@ -435,6 +435,9 @@ mod tests {
         .expect("Task panicked");
 
         assert!(result.is_err(), "Should fail with invalid chain task ID");
+        if let Err(error) = result {
+            assert_eq!(error.status().unwrap(), 404);
+        }
     }
 
     #[tokio::test]
