@@ -272,11 +272,6 @@ mod tests {
             self.send_exit_cause_success = false;
             self
         }
-
-        fn with_send_computed_file_success(mut self) -> Self {
-            self.send_computed_file_success = false;
-            self
-        }
     }
 
     impl PostComputeRunnerInterface for MockRunner {
@@ -323,6 +318,7 @@ mod tests {
         }
     }
 
+    // region start
     #[test]
     fn start_return_valid_exit_code_when_ran() {
         with_vars(

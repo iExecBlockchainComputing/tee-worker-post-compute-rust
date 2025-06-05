@@ -468,6 +468,24 @@ mod tests {
     const TEST_RESULT_DIGEST: &str =
         "0xcb371be217faa47dab94e0d0ff0840c6cbf41645f0dc1a6ae3f34447155a76f3";
 
+    fn make_computed_file(
+        task_id: Option<&str>,
+        callback_data: Option<&str>,
+        deterministic_output_path: Option<&str>,
+        result_digest: Option<&str>,
+        enclave_signature: Option<&str>,
+        error_message: Option<&str>,
+    ) -> ComputedFile {
+        ComputedFile {
+            task_id: task_id.map(|s| s.to_string()),
+            callback_data: callback_data.map(|s| s.to_string()),
+            deterministic_output_path: deterministic_output_path.map(|s| s.to_string()),
+            result_digest: result_digest.map(|s| s.to_string()),
+            enclave_signature: enclave_signature.map(|s| s.to_string()),
+            error_message: error_message.map(|s| s.to_string()),
+        }
+    }
+
     #[test]
     fn sign_computed_file_returns_signature_when_all_env_and_fields_present() {
         with_vars(
@@ -482,12 +500,14 @@ mod tests {
                 ),
             ],
             || {
-                let mut computed_file = ComputedFile {
-                    task_id: Some(TEST_TASK_ID.to_string()),
-                    result_digest: Some(TEST_RESULT_DIGEST.to_string()),
-                    ..Default::default()
-                };
-
+                let mut computed_file = make_computed_file(
+                    Some(TEST_TASK_ID),
+                    None,
+                    None,
+                    Some(TEST_RESULT_DIGEST),
+                    None,
+                    None,
+                );
                 let result = sign_computed_file(&mut computed_file);
                 assert!(result.is_ok(), "Signing should be successful");
                 assert!(
@@ -510,12 +530,14 @@ mod tests {
                 Some(TEST_TEE_CHALLENGE_PRIVATE_KEY),
             )],
             || {
-                let mut computed_file = ComputedFile {
-                    task_id: Some(TEST_TASK_ID.to_string()),
-                    result_digest: Some(TEST_RESULT_DIGEST.to_string()),
-                    ..Default::default()
-                };
-
+                let mut computed_file = make_computed_file(
+                    Some(TEST_TASK_ID),
+                    None,
+                    None,
+                    Some(TEST_RESULT_DIGEST),
+                    None,
+                    None,
+                );
                 let result = sign_computed_file(&mut computed_file);
                 assert!(
                     matches!(
@@ -536,12 +558,14 @@ mod tests {
                 Some(TEST_WORKER_ADDRESS),
             )],
             || {
-                let mut computed_file = ComputedFile {
-                    task_id: Some(TEST_TASK_ID.to_string()),
-                    result_digest: Some(TEST_RESULT_DIGEST.to_string()),
-                    ..Default::default()
-                };
-
+                let mut computed_file = make_computed_file(
+                    Some(TEST_TASK_ID),
+                    None,
+                    None,
+                    Some(TEST_RESULT_DIGEST),
+                    None,
+                    None,
+                );
                 let result = sign_computed_file(&mut computed_file);
                 assert!(
                     matches!(
@@ -568,12 +592,8 @@ mod tests {
                 ),
             ],
             || {
-                let mut computed_file = ComputedFile {
-                    task_id: None, // Missing task_id
-                    result_digest: Some(TEST_RESULT_DIGEST.to_string()),
-                    ..Default::default()
-                };
-
+                let mut computed_file =
+                    make_computed_file(None, None, None, Some(TEST_RESULT_DIGEST), None, None);
                 let result = sign_computed_file(&mut computed_file);
                 assert!(result.is_err(), "Should fail when task_id is None");
             },
@@ -594,12 +614,8 @@ mod tests {
                 ),
             ],
             || {
-                let mut computed_file = ComputedFile {
-                    task_id: Some(TEST_TASK_ID.to_string()),
-                    result_digest: None, // Missing result_digest
-                    ..Default::default()
-                };
-
+                let mut computed_file =
+                    make_computed_file(Some(TEST_TASK_ID), None, None, None, None, None);
                 let result = sign_computed_file(&mut computed_file);
                 assert!(result.is_err(), "Should fail when result_digest is None");
             },
@@ -620,19 +636,24 @@ mod tests {
                 ),
             ],
             || {
-                let mut computed_file1 = ComputedFile {
-                    task_id: Some(TEST_TASK_ID.to_string()),
-                    result_digest: Some(TEST_RESULT_DIGEST.to_string()),
-                    ..Default::default()
-                };
-
-                let mut computed_file2 = ComputedFile {
-                    task_id: Some(TEST_TASK_ID.to_string()),
-                    result_digest: Some(TEST_RESULT_DIGEST.to_string()),
-                    ..Default::default()
-                };
-
+                let mut computed_file1 = make_computed_file(
+                    Some(TEST_TASK_ID),
+                    None,
+                    None,
+                    Some(TEST_RESULT_DIGEST),
+                    None,
+                    None,
+                );
                 let result1 = sign_computed_file(&mut computed_file1);
+
+                let mut computed_file2 = make_computed_file(
+                    Some(TEST_TASK_ID),
+                    None,
+                    None,
+                    Some(TEST_RESULT_DIGEST),
+                    None,
+                    None,
+                );
                 let result2 = sign_computed_file(&mut computed_file2);
 
                 assert!(result1.is_ok() && result2.is_ok());
