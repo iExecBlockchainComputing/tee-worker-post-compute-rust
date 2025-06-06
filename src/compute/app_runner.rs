@@ -101,7 +101,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
                 return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
             }
         };
-        let authorization = get_challenge(task_id)?;
+        let authorization = self.get_challenge(task_id)?;
         match self.worker_api_client.send_computed_file_to_host(
             &authorization,
             task_id,
@@ -236,7 +236,15 @@ pub fn start() -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::compute::{
+        computed_file::ComputedFile, errors::ReplicateStatusCause,
+        utils::env_utils::TeeSessionEnvironmentVariable,
+    };
     use temp_env::with_vars;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{header, method, path},
+    };
 
     struct MockRunner {
         run_post_compute_success: bool,
@@ -318,13 +326,15 @@ mod tests {
         }
     }
 
+    const TEST_TASK_ID: &str = "0x1234567890abcdef";
+
     // region start
     #[test]
     fn start_return_valid_exit_code_when_ran() {
         with_vars(
             vec![(
                 TeeSessionEnvironmentVariable::IexecTaskId.name(),
-                Some("0x123"),
+                Some(TEST_TASK_ID),
             )],
             || {
                 let result = start();
@@ -368,7 +378,7 @@ mod tests {
         with_vars(
             vec![(
                 TeeSessionEnvironmentVariable::IexecTaskId.name(),
-                Some("0x0"),
+                Some(TEST_TASK_ID),
             )],
             || {
                 let runner = MockRunner::new();
@@ -383,7 +393,7 @@ mod tests {
         with_vars(
             vec![(
                 TeeSessionEnvironmentVariable::IexecTaskId.name(),
-                Some("0x0"),
+                Some(TEST_TASK_ID),
             )],
             || {
                 let runner = MockRunner::new().with_run_post_compute_failure(Some(
@@ -404,7 +414,7 @@ mod tests {
         with_vars(
             vec![(
                 TeeSessionEnvironmentVariable::IexecTaskId.name(),
-                Some("0x0"),
+                Some(TEST_TASK_ID),
             )],
             || {
                 let runner = MockRunner::new().with_run_post_compute_failure(None);
@@ -423,7 +433,7 @@ mod tests {
         with_vars(
             vec![(
                 TeeSessionEnvironmentVariable::IexecTaskId.name(),
-                Some("0x0"),
+                Some(TEST_TASK_ID),
             )],
             || {
                 let runner = MockRunner::new()
@@ -443,7 +453,7 @@ mod tests {
         with_vars(
             vec![(
                 TeeSessionEnvironmentVariable::IexecTaskId.name(),
-                Some("0x0"),
+                Some(TEST_TASK_ID),
             )],
             || {
                 let runner = MockRunner::new()
@@ -457,4 +467,119 @@ mod tests {
             },
         );
     }
+    // endregion
+
+    // region send_computed_file
+    const TEST_WORKER_ADDRESS: &str = "0x1234567890abcdef1234567890abcdef12345678";
+    const TEST_PRIVATE_KEY: &str =
+        "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+    const TEST_CHALLENGE: &str = "0x184afe6f0d4232c37623d203f4ec42b8281bd7a7f3655c66e65b23b7dbac266330db02efc9bc1bd682405cc1b8876806e086729e1ef7f880e5782aade94cd5741c";
+
+    fn create_test_computed_file(task_id: Option<String>) -> ComputedFile {
+        ComputedFile {
+            task_id,
+            result_digest: Some("0xresultdigest".to_string()),
+            enclave_signature: Some("0xsignature".to_string()),
+            deterministic_output_path: Some("/path/to/output".to_string()),
+            callback_data: None,
+            error_message: None,
+        }
+    }
+
+    async fn send_compute_file_action(server_url: String) -> Result<(), ReplicateStatusCause> {
+        tokio::task::spawn_blocking(move || {
+            with_vars(
+                vec![
+                    (
+                        TeeSessionEnvironmentVariable::SignWorkerAddress.name(),
+                        Some(TEST_WORKER_ADDRESS),
+                    ),
+                    (
+                        TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey.name(),
+                        Some(TEST_PRIVATE_KEY),
+                    ),
+                    (
+                        TeeSessionEnvironmentVariable::WorkerHostEnvVar.name(),
+                        Some(&server_url.replace("http://", "")),
+                    ),
+                ],
+                || {
+                    let runner = DefaultPostComputeRunner::new();
+                    let computed_file = create_test_computed_file(Some(TEST_TASK_ID.to_string()));
+                    runner.send_computed_file(&computed_file)
+                },
+            )
+        })
+        .await
+        .expect("Task panicked")
+    }
+
+    #[tokio::test]
+    async fn test_send_computed_file_success() {
+        let mock_server = MockServer::start().await;
+        let server_url = mock_server.uri();
+
+        Mock::given(method("POST"))
+            .and(path(format!("/compute/post/{}/computed", TEST_TASK_ID)))
+            .and(header("Authorization", TEST_CHALLENGE))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let result = send_compute_file_action(server_url).await;
+        assert!(result.is_ok(), "send_computed_file should succeed");
+    }
+
+    #[test]
+    fn send_computed_file_fails_when_task_id_missing() {
+        let runner = DefaultPostComputeRunner::new();
+        let computed_file = create_test_computed_file(None);
+
+        let result = runner.send_computed_file(&computed_file);
+
+        assert!(result.is_err(), "Should fail when task_id is missing");
+        assert_eq!(
+            result.unwrap_err(),
+            ReplicateStatusCause::PostComputeFailedUnknownIssue,
+            "Should return PostComputeFailedUnknownIssue when task_id is missing"
+        );
+    }
+
+    #[test]
+    fn send_computed_file_fails_when_get_challenge_fails() {
+        let runner = DefaultPostComputeRunner::new();
+        let computed_file = create_test_computed_file(Some(TEST_TASK_ID.to_string()));
+        let result = runner.send_computed_file(&computed_file);
+
+        assert!(result.is_err(), "Should fail when get_challenge fails");
+        assert_eq!(
+            result.unwrap_err(),
+            ReplicateStatusCause::PostComputeWorkerAddressMissing,
+            "Should propagate the error from get_challenge"
+        );
+    }
+
+    #[tokio::test]
+    async fn send_computed_file_fails_when_http_failrue() {
+        let mock_server = MockServer::start().await;
+        let server_url = mock_server.uri();
+
+        Mock::given(method("POST"))
+            .and(path(format!("/compute/post/{}/computed", TEST_TASK_ID)))
+            .and(header("Authorization", TEST_CHALLENGE))
+            .respond_with(ResponseTemplate::new(500))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let result = send_compute_file_action(server_url).await;
+        assert!(result.is_err(), "Should fail when HTTP request fails");
+        assert_eq!(
+            result.unwrap_err(),
+            ReplicateStatusCause::PostComputeSendComputedFileFailed,
+            "Should return PostComputeSendComputedFileFailed when HTTP request fails"
+        );
+    }
+    // endregion
 }
