@@ -6,6 +6,7 @@ use crate::compute::{
     errors::ReplicateStatusCause,
     signer::get_challenge,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
+    web2_result::encrypt_and_upload_result,
 };
 use log::{error, info};
 use std::error::Error;
@@ -69,6 +70,10 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
         let mut computed_file = read_computed_file(chain_task_id, "/iexec_out")?;
         build_result_digest_in_computed_file(&mut computed_file, should_callback)?;
         sign_computed_file(&mut computed_file).map_err(Box::new)?;
+
+        if !should_callback {
+            encrypt_and_upload_result(&computed_file).map_err(Box::new)?;
+        }
 
         self.send_computed_file(&computed_file).map_err(Box::new)?;
 
