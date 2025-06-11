@@ -70,8 +70,10 @@ impl ResultProxyApiClient {
 mod tests {
     use super::*;
     use serde_json::json;
-    use wiremock::matchers::{body_json, header, method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{body_json, header, method, path},
+    };
 
     // region ResultModel
     #[test]

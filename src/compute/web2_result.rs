@@ -6,11 +6,10 @@ use crate::compute::{
 };
 use log::{debug, error, info};
 use mockall::automock;
-use std::path::PathBuf;
 use std::{
     fs::{self, File},
     io::{self, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
 use walkdir::WalkDir;
 use zip::{ZipWriter, write::FileOptions};
@@ -253,13 +252,17 @@ mod tests {
     use super::*;
     use crate::compute::computed_file::ComputedFile;
     use mockall::predicate::*;
-    use std::fs::{self, File};
-    use std::io::Write;
-    use std::os::unix::fs::symlink;
+    use std::{
+        fs::{self, File},
+        io::Write,
+        os::unix::fs::symlink,
+    };
     use temp_env;
     use tempfile::TempDir;
-    use wiremock::matchers::{method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
     use zip::ZipArchive;
 
     fn create_test_computed_file(task_id: &str) -> ComputedFile {
