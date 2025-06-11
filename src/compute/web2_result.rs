@@ -255,6 +255,7 @@ mod tests {
     use mockall::predicate::*;
     use std::fs::{self, File};
     use std::io::Write;
+    use std::os::unix::fs::symlink;
     use temp_env;
     use tempfile::TempDir;
     use wiremock::matchers::{method, path};
@@ -391,8 +392,8 @@ mod tests {
         File::create(temp_dir.path().join("computed.json")).unwrap();
         File::create(temp_dir.path().join("output.log")).unwrap();
 
-        let service = Web2ResultService;
-        let result = service.check_result_files_name(task_id, temp_dir.path().to_str().unwrap());
+        let result =
+            Web2ResultService.check_result_files_name(task_id, temp_dir.path().to_str().unwrap());
         assert!(result.is_ok());
     }
 
@@ -401,8 +402,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let task_id = "0x0";
 
-        let service = Web2ResultService;
-        let result = service.check_result_files_name(task_id, temp_dir.path().to_str().unwrap());
+        let result =
+            Web2ResultService.check_result_files_name(task_id, temp_dir.path().to_str().unwrap());
         assert!(result.is_ok());
     }
 
@@ -413,11 +414,12 @@ mod tests {
 
         let long_filename = "result-0x0000000000000000000.txt";
         assert!(long_filename.len() > RESULT_FILE_NAME_MAX_LENGTH);
+
         File::create(temp_dir.path().join(long_filename)).unwrap();
         File::create(temp_dir.path().join("computed.json")).unwrap();
 
-        let service = Web2ResultService;
-        let result = service.check_result_files_name(task_id, temp_dir.path().to_str().unwrap());
+        let result =
+            Web2ResultService.check_result_files_name(task_id, temp_dir.path().to_str().unwrap());
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
@@ -430,8 +432,7 @@ mod tests {
         let task_id = "0x0";
         let non_existent_path = "/dummy/folder/that/doesnt/exist";
 
-        let service = Web2ResultService;
-        let result = service.check_result_files_name(task_id, non_existent_path);
+        let result = Web2ResultService.check_result_files_name(task_id, non_existent_path);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
@@ -452,9 +453,8 @@ mod tests {
         let long_filename = "this_is_a_very_long_filename_exceeding_limit.txt";
         File::create(sub_dir.join(long_filename)).unwrap();
 
-        let service = Web2ResultService;
-        let result = service.check_result_files_name(task_id, temp_dir.path().to_str().unwrap());
-
+        let result =
+            Web2ResultService.check_result_files_name(task_id, temp_dir.path().to_str().unwrap());
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
@@ -467,12 +467,11 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let task_id = "0x0";
 
-        // Create file with exactly 31 characters (max allowed)
         let max_length_filename = "a".repeat(RESULT_FILE_NAME_MAX_LENGTH);
         File::create(temp_dir.path().join(&max_length_filename)).unwrap();
 
-        let service = Web2ResultService;
-        let result = service.check_result_files_name(task_id, temp_dir.path().to_str().unwrap());
+        let result =
+            Web2ResultService.check_result_files_name(task_id, temp_dir.path().to_str().unwrap());
         assert!(result.is_ok());
     }
     // endregion
@@ -492,15 +491,13 @@ mod tests {
             .write_all(b"{\"key\": \"value\"}")
             .unwrap();
 
-        let service = Web2ResultService;
-        let result = service.zip_iexec_out(
+        let result = Web2ResultService.zip_iexec_out(
             source_dir.path().to_str().unwrap(),
             dest_dir.path().to_str().unwrap(),
         );
-
         assert!(result.is_ok());
-        let zip_path = result.unwrap();
 
+        let zip_path = result.unwrap();
         assert!(PathBuf::from(&zip_path).exists());
         assert!(zip_path.ends_with("iexec_out.zip"));
 
@@ -513,15 +510,13 @@ mod tests {
         let source_dir = TempDir::new().unwrap();
         let dest_dir = TempDir::new().unwrap();
 
-        let service = Web2ResultService;
-        let result = service.zip_iexec_out(
+        let result = Web2ResultService.zip_iexec_out(
             source_dir.path().to_str().unwrap(),
             dest_dir.path().to_str().unwrap(),
         );
-
         assert!(result.is_ok());
-        let zip_path = result.unwrap();
 
+        let zip_path = result.unwrap();
         assert!(PathBuf::from(&zip_path).exists());
 
         let metadata = fs::metadata(&zip_path).unwrap();
@@ -551,23 +546,18 @@ mod tests {
             .write_all(b"nested file")
             .unwrap();
 
-        let service = Web2ResultService;
-        let result = service.zip_iexec_out(
+        let result = Web2ResultService.zip_iexec_out(
             source_dir.path().to_str().unwrap(),
             dest_dir.path().to_str().unwrap(),
         );
-
         assert!(result.is_ok());
 
         let zip_path = result.unwrap();
         assert!(PathBuf::from(&zip_path).exists());
 
-        // Verify zip structure by opening it
         use zip::ZipArchive;
         let file = File::open(&zip_path).unwrap();
         let archive = ZipArchive::new(file).unwrap();
-
-        // Check that all files are in the archive with correct paths
         let file_names: Vec<String> = archive.file_names().map(|s| s.to_string()).collect();
         assert!(file_names.contains(&"root.txt".to_string()));
         assert!(file_names.contains(&"subdir/sub.txt".to_string()));
@@ -579,9 +569,8 @@ mod tests {
         let source_dir = TempDir::new().unwrap();
         let invalid_dest = "/invalid/path/that/does/not/exist";
 
-        let service = Web2ResultService;
-        let result = service.zip_iexec_out(source_dir.path().to_str().unwrap(), invalid_dest);
-
+        let result =
+            Web2ResultService.zip_iexec_out(source_dir.path().to_str().unwrap(), invalid_dest);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
@@ -590,24 +579,17 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn zip_iexec_out_handles_special_files_when_zipping() {
         let source_dir = TempDir::new().unwrap();
         let dest_dir = TempDir::new().unwrap();
 
-        // Create various file types
         File::create(source_dir.path().join(".hidden")).unwrap();
         File::create(source_dir.path().join("file with spaces.txt")).unwrap();
         File::create(source_dir.path().join("file-with-dashes.log")).unwrap();
+        symlink("/tmp/target", source_dir.path().join("symlink")).unwrap();
 
-        // Create a symlink (it should be skipped based on the implementation)
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::symlink;
-            let _ = symlink("/tmp/target", source_dir.path().join("symlink"));
-        }
-
-        let service = Web2ResultService;
-        let result = service.zip_iexec_out(
+        let result = Web2ResultService.zip_iexec_out(
             source_dir.path().to_str().unwrap(),
             dest_dir.path().to_str().unwrap(),
         );
@@ -638,7 +620,6 @@ mod tests {
         let source_dir = TempDir::new().unwrap();
         let dest_dir = TempDir::new().unwrap();
 
-        // Create test file structure
         File::create(source_dir.path().join("file1.txt"))
             .unwrap()
             .write_all(b"content1")
@@ -651,51 +632,39 @@ mod tests {
             .write_all(b"content2")
             .unwrap();
 
-        let service = Web2ResultService;
-        let result = service.zip_iexec_out(
+        let result = Web2ResultService.zip_iexec_out(
             source_dir.path().to_str().unwrap(),
             dest_dir.path().to_str().unwrap(),
         );
-
         assert!(result.is_ok());
-        let zip_path = result.unwrap();
 
-        // Verify the internal add_directory_to_zip worked correctly
+        let zip_path = result.unwrap();
         verify_zip_contents(&zip_path, &["file1.txt", "subdir/file2.txt"]);
     }
 
     #[test]
+    #[cfg(unix)]
     fn zip_iexec_out_skips_symlinks_via_add_directory() {
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::symlink;
+        let source_dir = TempDir::new().unwrap();
+        let dest_dir = TempDir::new().unwrap();
 
-            let source_dir = TempDir::new().unwrap();
-            let dest_dir = TempDir::new().unwrap();
+        File::create(source_dir.path().join("regular.txt"))
+            .unwrap()
+            .write_all(b"content")
+            .unwrap();
+        symlink("/tmp/target", source_dir.path().join("symlink.txt")).unwrap();
 
-            // Create a regular file and a symlink
-            File::create(source_dir.path().join("regular.txt"))
-                .unwrap()
-                .write_all(b"content")
-                .unwrap();
+        let result = Web2ResultService.zip_iexec_out(
+            source_dir.path().to_str().unwrap(),
+            dest_dir.path().to_str().unwrap(),
+        );
+        assert!(result.is_ok());
 
-            symlink("/tmp/target", source_dir.path().join("symlink.txt")).unwrap();
-
-            let service = Web2ResultService;
-            let result = service.zip_iexec_out(
-                source_dir.path().to_str().unwrap(),
-                dest_dir.path().to_str().unwrap(),
-            );
-
-            assert!(result.is_ok());
-            let zip_path = result.unwrap();
-
-            // Verify only regular file was added (symlink was skipped by add_directory_to_zip)
-            let file = File::open(&zip_path).unwrap();
-            let mut archive = ZipArchive::new(file).unwrap();
-            assert_eq!(archive.len(), 1);
-            assert!(archive.by_name("regular.txt").is_ok());
-        }
+        let zip_path = result.unwrap();
+        let file = File::open(&zip_path).unwrap();
+        let mut archive = ZipArchive::new(file).unwrap();
+        assert_eq!(archive.len(), 1);
+        assert!(archive.by_name("regular.txt").is_ok());
     }
     // endregion
 
@@ -792,8 +761,8 @@ mod tests {
         temp_env::with_vars(envs, || {
             let computed_file = create_test_computed_file("0x0");
             let file_path = "fileToUpload.zip";
-            let service = Web2ResultService;
-            let result = service.upload_result(&computed_file, file_path);
+
+            let result = Web2ResultService.upload_result(&computed_file, file_path);
             assert!(result.is_err());
             assert_eq!(result.unwrap_err(), expected_error);
         });
@@ -865,7 +834,6 @@ mod tests {
 
         let result =
             actually_upload_to_ipfs_with_iexec_proxy(computed_file, mock_server, file_path).await;
-
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "ipfs://QmHash123");
     }
@@ -877,14 +845,12 @@ mod tests {
         let base_url = "http://localhost";
         let token = "IPFS_TOKEN";
 
-        let service = Web2ResultService;
-        let result = service.upload_to_ipfs_with_iexec_proxy(
+        let result = Web2ResultService.upload_to_ipfs_with_iexec_proxy(
             &computed_file,
             base_url,
             token,
             non_existent_file,
         );
-
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
@@ -900,7 +866,6 @@ mod tests {
             .unwrap()
             .write_all(b"test content")
             .unwrap();
-
         let computed_file = create_test_computed_file("0x0");
 
         let mock_server = MockServer::start().await;
@@ -912,7 +877,6 @@ mod tests {
 
         let result =
             actually_upload_to_ipfs_with_iexec_proxy(computed_file, mock_server, file_path).await;
-
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
@@ -927,7 +891,6 @@ mod tests {
         let source_dir = TempDir::new().unwrap();
         let dest_dir = TempDir::new().unwrap();
 
-        // Create test files
         File::create(source_dir.path().join("file1.txt"))
             .unwrap()
             .write_all(b"content1")
@@ -942,54 +905,40 @@ mod tests {
         let mut zip = ZipWriter::new(zip_file);
         let options = FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
-        let service = Web2ResultService;
-        let result = service.add_directory_to_zip(&mut zip, source_dir.path(), options);
-
+        let result = Web2ResultService.add_directory_to_zip(&mut zip, source_dir.path(), options);
         assert!(result.is_ok());
 
         zip.finish().unwrap();
-
-        // Verify files were added
         let file = File::open(&zip_path).unwrap();
         let archive = ZipArchive::new(file).unwrap();
         assert_eq!(archive.len(), 2);
     }
 
     #[test]
+    #[cfg(unix)]
     fn add_directory_to_zip_skips_symlinks() {
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::symlink;
+        let source_dir = TempDir::new().unwrap();
+        let dest_dir = TempDir::new().unwrap();
 
-            let source_dir = TempDir::new().unwrap();
-            let dest_dir = TempDir::new().unwrap();
+        File::create(source_dir.path().join("regular.txt"))
+            .unwrap()
+            .write_all(b"content")
+            .unwrap();
+        symlink("/tmp/target", source_dir.path().join("symlink.txt")).unwrap();
 
-            // Create a regular file and a symlink
-            File::create(source_dir.path().join("regular.txt"))
-                .unwrap()
-                .write_all(b"content")
-                .unwrap();
+        let zip_path = dest_dir.path().join("test.zip");
+        let zip_file = File::create(&zip_path).unwrap();
+        let mut zip = ZipWriter::new(zip_file);
+        let options = FileOptions::default();
 
-            symlink("/tmp/target", source_dir.path().join("symlink.txt")).unwrap();
+        let result = Web2ResultService.add_directory_to_zip(&mut zip, source_dir.path(), options);
+        assert!(result.is_ok());
 
-            let zip_path = dest_dir.path().join("test.zip");
-            let zip_file = File::create(&zip_path).unwrap();
-            let mut zip = ZipWriter::new(zip_file);
-            let options = FileOptions::default();
-
-            let service = Web2ResultService;
-            let result = service.add_directory_to_zip(&mut zip, source_dir.path(), options);
-
-            assert!(result.is_ok());
-
-            zip.finish().unwrap();
-
-            // Verify only regular file was added
-            let file = File::open(&zip_path).unwrap();
-            let mut archive = ZipArchive::new(file).unwrap();
-            assert_eq!(archive.len(), 1);
-            assert!(archive.by_name("regular.txt").is_ok());
-        }
+        zip.finish().unwrap();
+        let file = File::open(&zip_path).unwrap();
+        let mut archive = ZipArchive::new(file).unwrap();
+        assert_eq!(archive.len(), 1);
+        assert!(archive.by_name("regular.txt").is_ok());
     }
     // endregion
 }
