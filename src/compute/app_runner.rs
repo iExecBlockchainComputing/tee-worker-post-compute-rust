@@ -6,6 +6,7 @@ use crate::compute::{
     errors::ReplicateStatusCause,
     signer::get_challenge,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
+    web2_result::{Web2ResultInterface, Web2ResultService},
 };
 use log::{error, info};
 use std::error::Error;
@@ -69,6 +70,12 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
         let mut computed_file = read_computed_file(chain_task_id, "/iexec_out")?;
         build_result_digest_in_computed_file(&mut computed_file, should_callback)?;
         sign_computed_file(&mut computed_file).map_err(Box::new)?;
+
+        if !should_callback {
+            Web2ResultService
+                .encrypt_and_upload_result(&computed_file)
+                .map_err(Box::new)?;
+        }
 
         self.send_computed_file(&computed_file).map_err(Box::new)?;
 
@@ -548,15 +555,23 @@ mod tests {
 
     #[test]
     fn send_computed_file_fails_when_get_challenge_fails() {
-        let runner = DefaultPostComputeRunner::new();
-        let computed_file = create_test_computed_file(Some(TEST_TASK_ID.to_string()));
-        let result = runner.send_computed_file(&computed_file);
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::SignWorkerAddress.name(),
+                None::<&str>,
+            )],
+            || {
+                let runner = DefaultPostComputeRunner::new();
+                let computed_file = create_test_computed_file(Some(TEST_TASK_ID.to_string()));
+                let result = runner.send_computed_file(&computed_file);
 
-        assert!(result.is_err(), "Should fail when get_challenge fails");
-        assert_eq!(
-            result.unwrap_err(),
-            ReplicateStatusCause::PostComputeWorkerAddressMissing,
-            "Should propagate the error from get_challenge"
+                assert!(result.is_err(), "Should fail when get_challenge fails");
+                assert_eq!(
+                    result.unwrap_err(),
+                    ReplicateStatusCause::PostComputeWorkerAddressMissing,
+                    "Should propagate the error from get_challenge"
+                );
+            },
         );
     }
 
