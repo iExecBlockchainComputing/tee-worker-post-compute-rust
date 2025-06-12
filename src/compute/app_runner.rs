@@ -555,15 +555,23 @@ mod tests {
 
     #[test]
     fn send_computed_file_fails_when_get_challenge_fails() {
-        let runner = DefaultPostComputeRunner::new();
-        let computed_file = create_test_computed_file(Some(TEST_TASK_ID.to_string()));
-        let result = runner.send_computed_file(&computed_file);
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::SignWorkerAddress.name(),
+                None::<&str>,
+            )],
+            || {
+                let runner = DefaultPostComputeRunner::new();
+                let computed_file = create_test_computed_file(Some(TEST_TASK_ID.to_string()));
+                let result = runner.send_computed_file(&computed_file);
 
-        assert!(result.is_err(), "Should fail when get_challenge fails");
-        assert_eq!(
-            result.unwrap_err(),
-            ReplicateStatusCause::PostComputeWorkerAddressMissing,
-            "Should propagate the error from get_challenge"
+                assert!(result.is_err(), "Should fail when get_challenge fails");
+                assert_eq!(
+                    result.unwrap_err(),
+                    ReplicateStatusCause::PostComputeWorkerAddressMissing,
+                    "Should propagate the error from get_challenge"
+                );
+            },
         );
     }
 
