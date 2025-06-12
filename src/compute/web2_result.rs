@@ -18,6 +18,35 @@ const SLASH_POST_COMPUTE_TMP: &str = "/post-compute-tmp";
 const RESULT_FILE_NAME_MAX_LENGTH: usize = 31;
 const IPFS_RESULT_STORAGE_PROVIDER: &str = "ipfs";
 
+/// Trait defining the interface for Web2 result processing operations.
+///
+/// This trait encapsulates all the operations needed to process computation results
+/// for Web2 storage systems. It provides a clean abstraction that allows for easy
+/// testing through mocking and potential alternative implementations.
+///
+/// The trait methods represent the main stages of the result processing workflow:
+/// validation, compression, and upload. Each method can be used independently or
+/// as part of the complete workflow provided by [`encrypt_and_upload_result`].
+///
+///
+/// # Example Implementation
+///
+/// ```rust
+/// use crate::compute::web2_result::Web2ResultInterface;
+/// use crate::compute::computed_file::ComputedFile;
+/// use crate::compute::errors::ReplicateStatusCause;
+///
+/// struct MockResultService;
+///
+/// impl Web2ResultInterface for MockResultService {
+///     fn encrypt_and_upload_result(&self, computed_file: &ComputedFile) -> Result<(), ReplicateStatusCause> {
+///         // Mock implementation for testing
+///         Ok(())
+///     }
+///
+///     // ... implement other methods
+/// }
+/// ```
 #[automock]
 pub trait Web2ResultInterface {
     fn encrypt_and_upload_result(
@@ -48,9 +77,80 @@ pub trait Web2ResultInterface {
     ) -> Result<String, ReplicateStatusCause>;
 }
 
+/// Production implementation of [`Web2ResultInterface`].
+///
+/// [`Web2ResultService`] provides the concrete implementation of all Web2 result processing
+/// operations. It handles the complete workflow from validation through upload, coordinating
+/// between different components to ensure reliable result storage.
+///
+/// # Example
+///
+/// ```rust
+/// use crate::compute::web2_result::{Web2ResultService, Web2ResultInterface};
+/// use crate::compute::computed_file::ComputedFile;
+///
+/// let service = Web2ResultService;
+/// let computed_file = ComputedFile {
+///     task_id: Some("0x123".to_string()),
+///     result_digest: Some("0xabc".to_string()),
+///     enclave_signature: Some("0xdef".to_string()),
+///     ..Default::default()
+/// };
+///
+/// // Process and upload results
+/// match service.encrypt_and_upload_result(&computed_file) {
+///     Ok(()) => println!("Results uploaded successfully"),
+///     Err(e) => eprintln!("Upload failed: {:?}", e),
+/// }
+/// ```
 pub struct Web2ResultService;
 
 impl Web2ResultService {
+    /// Adds all files from a directory to a ZIP archive.
+    ///
+    /// This private method recursively traverses the source directory and adds all
+    /// regular files to the provided ZIP writer. It maintains the directory structure
+    /// within the archive and handles various file types appropriately.
+    ///
+    /// # File Handling
+    ///
+    /// The method:
+    /// - Includes all regular files in the directory tree
+    /// - Preserves the relative directory structure
+    /// - Skips symbolic links to avoid potential security issues
+    /// - Uses streaming I/O for memory efficiency with large files
+    ///
+    /// # Arguments
+    ///
+    /// * `zip` - Mutable reference to the ZIP writer
+    /// * `source_dir` - Path to the source directory to compress
+    /// * `options` - ZIP file options (compression method, etc.)
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - All files were successfully added to the archive
+    /// * `Err(ReplicateStatusCause)` - An error occurred during compression
+    ///
+    /// # Errors
+    ///
+    /// This method will return [`ReplicateStatusCause::PostComputeOutFolderZipFailed`] if:
+    /// - A file cannot be opened for reading
+    /// - An I/O error occurs during file copying
+    /// - The ZIP writer encounters an error
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use std::fs::File;
+    /// use zip::{ZipWriter, write::FileOptions};
+    ///
+    /// let file = File::create("output.zip")?;
+    /// let mut zip = ZipWriter::new(file);
+    /// let options = FileOptions::default();
+    ///
+    /// service.add_directory_to_zip(&mut zip, Path::new("/path/to/source"), options)?;
+    /// zip.finish()?;
+    /// ```
     fn add_directory_to_zip<W: Write + io::Seek>(
         &self,
         zip: &mut ZipWriter<W>,
@@ -92,6 +192,29 @@ impl Web2ResultService {
 }
 
 impl Web2ResultInterface for Web2ResultService {
+
+    /// Executes the complete result processing workflow.
+    ///
+    /// This is the main entry point for processing computation results. It orchestrates
+    /// the entire workflow including validation, compression, and upload operations.
+    /// The method name maintains compatibility with the Java implementation, though
+    /// encryption is not yet implemented.
+    ///
+    /// # Arguments
+    ///
+    /// * `computed_file` - The [`ComputedFile`] containing task information and metadata
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - The result was successfully processed and uploaded
+    /// * `Err(ReplicateStatusCause)` - An error occurred during processing
+    ///
+    /// # Errors
+    ///
+    /// This method can return various errors depending on the failure point:
+    /// - [`ReplicateStatusCause::PostComputeTooLongResultFileName`] - Filename validation failed
+    /// - [`ReplicateStatusCause::PostComputeOutFolderZipFailed`] - Compression failed
+    /// - [`ReplicateStatusCause::PostComputeIpfsUploadFailed`] - Upload failed
     fn encrypt_and_upload_result(
         &self,
         computed_file: &ComputedFile,
@@ -113,6 +236,21 @@ impl Web2ResultInterface for Web2ResultService {
         Ok(())
     }
 
+    /// Validates that all result filenames meet the length requirements.
+    ///
+    /// This method checks all files in the specified directory to ensure their names
+    /// don't exceed the maximum allowed length. This validation prevents issues with
+    /// storage systems that have filename limitations.
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - The task identifier for logging purposes
+    /// * `iexec_out_path` - Path to the directory containing result files
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - All filenames are within the allowed length
+    /// * `Err(ReplicateStatusCause)` - At least one filename exceeds the limit
     fn check_result_files_name(
         &self,
         task_id: &str,
@@ -147,6 +285,21 @@ impl Web2ResultInterface for Web2ResultService {
         Ok(())
     }
 
+    /// Compresses the result directory into a ZIP archive.
+    ///
+    /// This method creates a compressed archive of all files in the specified directory.
+    /// The compression uses the DEFLATE algorithm for optimal balance between compression
+    /// ratio and processing speed.
+    ///
+    /// # Arguments
+    ///
+    /// * `iexec_out_path` - Path to the directory containing files to compress
+    /// * `save_in` - Directory where the ZIP file should be saved
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(String)` - Path to the created ZIP file
+    /// * `Err(ReplicateStatusCause)` - Compression failed
     fn zip_iexec_out(
         &self,
         iexec_out_path: &str,
@@ -173,6 +326,21 @@ impl Web2ResultInterface for Web2ResultService {
         Ok(zip_path.to_string_lossy().to_string())
     }
 
+    /// Uploads the compressed result to the configured storage provider.
+    ///
+    /// This method handles the upload process to the configured storage system.
+    /// Currently supports IPFS through the iExec result proxy, with the potential
+    /// for additional storage providers in the future.
+    ///
+    /// # Arguments
+    ///
+    /// * `computed_file` - The [`ComputedFile`] containing task metadata
+    /// * `file_to_upload_path` - Path to the file that should be uploaded
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(String)` - The storage link where the result was uploaded
+    /// * `Err(ReplicateStatusCause)` - Upload failed
     #[allow(clippy::wildcard_in_or_patterns)]
     fn upload_result(
         &self,
@@ -208,6 +376,23 @@ impl Web2ResultInterface for Web2ResultService {
         Ok(result_link)
     }
 
+    /// Uploads a file to IPFS using the iExec result proxy service.
+    ///
+    /// This method specifically handles uploads to IPFS through the iExec result proxy.
+    /// It creates a [`ResultModel`] with the necessary metadata and sends it to the
+    /// proxy service for IPFS storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `computed_file` - The [`ComputedFile`] containing task metadata
+    /// * `base_url` - The base URL of the result proxy service
+    /// * `token` - Authentication token for the result proxy
+    /// * `file_to_upload_path` - Path to the file that should be uploaded
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(String)` - The IPFS link where the result was stored
+    /// * `Err(ReplicateStatusCause)` - Upload failed
     fn upload_to_ipfs_with_iexec_proxy(
         &self,
         computed_file: &ComputedFile,

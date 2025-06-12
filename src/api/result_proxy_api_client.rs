@@ -1,9 +1,43 @@
+use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 
 const EMPTY_HEX_STRING_32: &str =
     "0x0000000000000000000000000000000000000000000000000000000000000000";
 const EMPTY_WEB3_SIG: &str = "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
 
+/// Represents a computation result that can be uploaded to IPFS via the iExec result proxy.
+///
+/// This struct encapsulates all the necessary information about a completed computation task
+/// that needs to be stored permanently on IPFS. It includes task identification, metadata,
+/// the actual result data, and cryptographic proofs of computation integrity.
+///
+/// The struct is designed to be serialized to JSON for transmission to the result proxy API,
+/// with field names automatically converted to camelCase to match the expected API format.
+///
+/// # Fields
+///
+/// * `chain_task_id` - The unique identifier of the task on the blockchain
+/// * `deal_id` - The identifier of the deal this task belongs to
+/// * `task_index` - The index of this task within the deal (typically 0 for single-task deals)
+/// * `image` - The Docker image used for computation (currently unused in uploads)
+/// * `cmd` - The command executed during computation (currently unused in uploads)
+/// * `zip` - The compressed result data as a byte array
+/// * `deterministic_hash` - The cryptographic hash of the computation result
+/// * `enclave_signature` - The TEE (Trusted Execution Environment) signature proving integrity
+///
+/// # Example
+///
+/// ```rust
+/// use crate::api::result_proxy_api_client::ResultModel;
+///
+/// let result = ResultModel {
+///     chain_task_id: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
+///     deterministic_hash: "0xabcdef1234567890abcdef1234567890abcdef12".to_string(),
+///     enclave_signature: "0x789abc123def456789abc123def456789abc123d...".to_string(),
+///     zip: vec![0x50, 0x4b, 0x03, 0x04], // ZIP file header
+///     ..Default::default()
+/// };
+/// ```
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResultModel {
@@ -32,19 +66,86 @@ impl Default for ResultModel {
     }
 }
 
+/// HTTP client for interacting with the iExec result proxy API.
+///
+/// This client can be created directly with a base URL using [`new()`].
+///
+/// # Example
+///
+/// ```rust
+/// use crate::api::result_proxy_api_client::ResultProxyApiClient;
+///
+/// let client = ResultProxyApiClient::new("https://result-proxy.iex.ec");
+/// ```
 pub struct ResultProxyApiClient {
     base_url: String,
-    client: reqwest::blocking::Client,
+    client: Client,
 }
 
 impl ResultProxyApiClient {
     pub fn new(base_url: &str) -> Self {
         Self {
             base_url: base_url.to_string(),
-            client: reqwest::blocking::Client::new(),
+            client: Client::new(),
         }
     }
 
+    /// Uploads a computation result to IPFS via the result proxy service.
+    ///
+    /// This method sends a POST request to the result proxy's `/v1/results` endpoint with
+    /// the provided result model. The result proxy validates the data, uploads it to IPFS,
+    /// and returns the IPFS link for permanent storage.
+    ///
+    /// The upload process involves several steps handled by the result proxy:
+    /// 1. Authentication and authorization validation
+    /// 2. Result data validation (signatures, hashes, etc.)
+    /// 3. IPFS upload and pinning
+    /// 4. Registration of the result link on the blockchain
+    ///
+    /// # Arguments
+    ///
+    /// * `authorization` - The bearer token for authenticating with the result proxy
+    /// * `result_model` - The [`ResultModel`] containing the computation result to upload
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(String)` - The IPFS link where the result was uploaded (e.g., "ipfs://QmHash...")
+    /// * `Err(reqwest::Error)` - HTTP client error or server-side error
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error in the following situations:
+    /// * Network connectivity issues preventing the HTTP request
+    /// * Authentication failures (invalid or expired token)
+    /// * Server-side validation failures (invalid signatures, malformed data)
+    /// * IPFS upload failures on the result proxy side
+    /// * HTTP status codes indicating server errors (4xx, 5xx)
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use crate::api::result_proxy_api_client::{ResultProxyApiClient, ResultModel};
+    ///
+    /// let client = ResultProxyApiClient::new("https://result-proxy.iex.ec");
+    /// let result_model = ResultModel {
+    ///     chain_task_id: "0x123...".to_string(),
+    ///     zip: compressed_data,
+    ///     deterministic_hash: computed_hash,
+    ///     enclave_signature: tee_signature,
+    ///     ..Default::default()
+    /// };
+    ///
+    /// match client.upload_to_ipfs("Bearer token123", &result_model) {
+    ///     Ok(ipfs_link) => {
+    ///         println!("Successfully uploaded to: {}", ipfs_link);
+    ///         // IPFS link can be used to retrieve the result later
+    ///     }
+    ///     Err(e) => {
+    ///         eprintln!("Upload failed: {}", e);
+    ///         // Handle error appropriately (retry, report, etc.)
+    ///     }
+    /// }
+    /// ```
     pub fn upload_to_ipfs(
         &self,
         authorization: &str,
