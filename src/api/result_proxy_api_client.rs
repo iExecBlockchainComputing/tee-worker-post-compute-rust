@@ -176,6 +176,16 @@ mod tests {
         matchers::{body_json, header, method, path},
     };
 
+    // Test constants
+    const TEST_TASK_ID: &str = "0x123";
+    const TEST_DEAL_ID: &str = "0x456";
+    const TEST_DETERMINISTIC_HASH: &str = "0xabc";
+    const TEST_ENCLAVE_SIGNATURE: &str = "0xdef";
+    const TEST_IMAGE: &str = "test-image";
+    const TEST_CMD: &str = "test-cmd";
+    const TEST_IPFS_LINK: &str = "ipfs://QmHash123";
+    const TEST_TOKEN: &str = "test-token";
+
     // region ResultModel
     #[test]
     fn result_model_default_returns_correct_values_when_created() {
@@ -193,14 +203,14 @@ mod tests {
     #[test]
     fn result_model_serializes_to_camel_case_when_converted_to_json() {
         let model = ResultModel {
-            chain_task_id: "0x123".to_string(),
-            deal_id: "0x456".to_string(),
+            chain_task_id: TEST_TASK_ID.to_string(),
+            deal_id: TEST_DEAL_ID.to_string(),
             task_index: 5,
-            image: "test-image".to_string(),
-            cmd: "test-cmd".to_string(),
+            image: TEST_IMAGE.to_string(),
+            cmd: TEST_CMD.to_string(),
             zip: vec![1, 2, 3],
-            deterministic_hash: "0xabc".to_string(),
-            enclave_signature: "0xdef".to_string(),
+            deterministic_hash: TEST_DETERMINISTIC_HASH.to_string(),
+            enclave_signature: TEST_ENCLAVE_SIGNATURE.to_string(),
         };
 
         let json = serde_json::to_value(&model).unwrap();
@@ -220,39 +230,39 @@ mod tests {
         assert!(json.get("enclave_signature").is_none());
 
         // Verify values
-        assert_eq!(json["chainTaskId"], "0x123");
-        assert_eq!(json["dealId"], "0x456");
+        assert_eq!(json["chainTaskId"], TEST_TASK_ID);
+        assert_eq!(json["dealId"], TEST_DEAL_ID);
         assert_eq!(json["taskIndex"], 5);
-        assert_eq!(json["image"], "test-image");
-        assert_eq!(json["cmd"], "test-cmd");
+        assert_eq!(json["image"], TEST_IMAGE);
+        assert_eq!(json["cmd"], TEST_CMD);
         assert_eq!(json["zip"], serde_json::json!([1, 2, 3]));
-        assert_eq!(json["deterministicHash"], "0xabc");
-        assert_eq!(json["enclaveSignature"], "0xdef");
+        assert_eq!(json["deterministicHash"], TEST_DETERMINISTIC_HASH);
+        assert_eq!(json["enclaveSignature"], TEST_ENCLAVE_SIGNATURE);
     }
 
     #[test]
     fn result_model_deserializes_from_camel_case_when_parsing_json() {
-        let json_str = r#"{
-            "chainTaskId": "0x123",
-            "dealId": "0x456",
+        let json_str = format!(r#"{{
+            "chainTaskId": "{}",
+            "dealId": "{}",
             "taskIndex": 5,
-            "image": "test-image",
-            "cmd": "test-cmd",
+            "image": "{}",
+            "cmd": "{}",
             "zip": [1, 2, 3],
-            "deterministicHash": "0xabc",
-            "enclaveSignature": "0xdef"
-        }"#;
+            "deterministicHash": "{}",
+            "enclaveSignature": "{}"
+        }}"#, TEST_TASK_ID, TEST_DEAL_ID, TEST_IMAGE, TEST_CMD, TEST_DETERMINISTIC_HASH, TEST_ENCLAVE_SIGNATURE);
 
-        let model: ResultModel = serde_json::from_str(json_str).unwrap();
+        let model: ResultModel = serde_json::from_str(&json_str).unwrap();
 
-        assert_eq!(model.chain_task_id, "0x123");
-        assert_eq!(model.deal_id, "0x456");
+        assert_eq!(model.chain_task_id, TEST_TASK_ID);
+        assert_eq!(model.deal_id, TEST_DEAL_ID);
         assert_eq!(model.task_index, 5);
-        assert_eq!(model.image, "test-image");
-        assert_eq!(model.cmd, "test-cmd");
+        assert_eq!(model.image, TEST_IMAGE);
+        assert_eq!(model.cmd, TEST_CMD);
         assert_eq!(model.zip, vec![1, 2, 3]);
-        assert_eq!(model.deterministic_hash, "0xabc");
-        assert_eq!(model.enclave_signature, "0xdef");
+        assert_eq!(model.deterministic_hash, TEST_DETERMINISTIC_HASH);
+        assert_eq!(model.enclave_signature, TEST_ENCLAVE_SIGNATURE);
     }
     //endregion
 
@@ -266,15 +276,12 @@ mod tests {
 
     #[tokio::test]
     async fn upload_to_ipfs_returns_ipfs_link_when_server_responds_successfully() {
-        let task_id = "0x123";
-        let ipfs_link = "ipfs://QmHash123";
-        let test_token = "test-token";
         let zip_content = b"test content";
 
         let expected_model = ResultModel {
-            chain_task_id: task_id.to_string(),
-            deterministic_hash: "0xabc".to_string(),
-            enclave_signature: "0xdef".to_string(),
+            chain_task_id: TEST_TASK_ID.to_string(),
+            deterministic_hash: TEST_DETERMINISTIC_HASH.to_string(),
+            enclave_signature: TEST_ENCLAVE_SIGNATURE.to_string(),
             zip: zip_content.to_vec(),
             ..Default::default()
         };
@@ -282,30 +289,30 @@ mod tests {
         let mock_server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/v1/results"))
-            .and(header("Authorization", test_token))
+            .and(header("Authorization", TEST_TOKEN))
             .and(body_json(json!({
-                "chainTaskId": task_id,
+                "chainTaskId": TEST_TASK_ID,
                 "dealId": expected_model.deal_id,
                 "taskIndex": 0,
                 "image": "",
                 "cmd": "",
                 "zip": zip_content.to_vec(),
-                "deterministicHash": "0xabc",
-                "enclaveSignature": "0xdef"
+                "deterministicHash": TEST_DETERMINISTIC_HASH,
+                "enclaveSignature": TEST_ENCLAVE_SIGNATURE
             })))
-            .respond_with(ResponseTemplate::new(200).set_body_string(ipfs_link))
+            .respond_with(ResponseTemplate::new(200).set_body_string(TEST_IPFS_LINK))
             .mount(&mock_server)
             .await;
 
         let result = tokio::task::spawn_blocking(move || {
             let client = ResultProxyApiClient::new(&mock_server.uri());
-            client.upload_to_ipfs(test_token, &expected_model)
+            client.upload_to_ipfs(TEST_TOKEN, &expected_model)
         })
         .await
         .expect("Task panicked");
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), ipfs_link);
+        assert_eq!(result.unwrap(), TEST_IPFS_LINK);
     }
 
     #[tokio::test]
@@ -320,7 +327,7 @@ mod tests {
         let result = tokio::task::spawn_blocking(move || {
             let client = ResultProxyApiClient::new(&mock_server.uri());
             let model = ResultModel::default();
-            client.upload_to_ipfs("test-token", &model)
+            client.upload_to_ipfs(TEST_TOKEN, &model)
         })
         .await
         .expect("Task panicked");
@@ -340,13 +347,13 @@ mod tests {
             .await;
 
         let model = ResultModel {
-            chain_task_id: "0x0".to_string(),
+            chain_task_id: EMPTY_HEX_STRING_32.to_string(),
             ..Default::default()
         };
 
         let result = tokio::task::spawn_blocking(move || {
             let client = ResultProxyApiClient::new(&mock_server.uri());
-            client.upload_to_ipfs("IPFS_TOKEN", &model)
+            client.upload_to_ipfs(TEST_TOKEN, &model)
         })
         .await
         .expect("Task panicked");
