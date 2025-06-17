@@ -13,41 +13,24 @@ const EMPTY_WEB3_SIG: &str = "0x000000000000000000000000000000000000000000000000
 ///
 /// The struct is designed to be serialized to JSON for transmission to the result proxy API,
 /// with field names automatically converted to camelCase to match the expected API format.
-///
-/// # Fields
-///
-/// * `chain_task_id` - The unique identifier of the task on the blockchain
-/// * `deal_id` - The identifier of the deal this task belongs to
-/// * `task_index` - The index of this task within the deal (typically 0 for single-task deals)
-/// * `image` - The Docker image used for computation (currently unused in uploads)
-/// * `cmd` - The command executed during computation (currently unused in uploads)
-/// * `zip` - The compressed result data as a byte array
-/// * `deterministic_hash` - The cryptographic hash of the computation result
-/// * `enclave_signature` - The TEE (Trusted Execution Environment) signature proving integrity
-///
-/// # Example
-///
-/// ```rust
-/// use crate::api::result_proxy_api_client::ResultModel;
-///
-/// let result = ResultModel {
-///     chain_task_id: "0x1234567890abcdef1234567890abcdef12345678".to_string(),
-///     deterministic_hash: "0xabcdef1234567890abcdef1234567890abcdef12".to_string(),
-///     enclave_signature: "0x789abc123def456789abc123def456789abc123d...".to_string(),
-///     zip: vec![0x50, 0x4b, 0x03, 0x04], // ZIP file header
-///     ..Default::default()
-/// };
-/// ```
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResultModel {
+    /// Unique identifier of the task on the blockchain
     pub chain_task_id: String,
+    /// Unique identifier of the deal this task belongs to
     pub deal_id: String,
+    /// Index of the task within the deal
     pub task_index: u32,
+    /// Docker image used for computation
     pub image: String,
+    /// Command executed during computation
     pub cmd: String,
+    /// Compressed result data as a byte array
     pub zip: Vec<u8>,
+    /// Cryptographic hash of the computation result
     pub deterministic_hash: String,
+    /// TEE (Trusted Execution Environment) signature proving integrity
     pub enclave_signature: String,
 }
 
@@ -75,7 +58,7 @@ impl Default for ResultModel {
 /// ```rust
 /// use crate::api::result_proxy_api_client::ResultProxyApiClient;
 ///
-/// let client = ResultProxyApiClient::new("https://result-proxy.iex.ec");
+/// let client = ResultProxyApiClient::new("https://result.v8-bellecour.iex.ec");
 /// ```
 pub struct ResultProxyApiClient {
     base_url: String,
