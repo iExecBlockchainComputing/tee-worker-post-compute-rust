@@ -43,7 +43,7 @@ const EMPTY_WEB3_SIG: &str = "0x000000000000000000000000000000000000000000000000
 pub struct ResultModel {
     pub chain_task_id: String,
     pub deal_id: String,
-    pub task_index: i32,
+    pub task_index: u32,
     pub image: String,
     pub cmd: String,
     pub zip: Vec<u8>,
