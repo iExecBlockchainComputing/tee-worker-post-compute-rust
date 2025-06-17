@@ -49,23 +49,32 @@ impl Default for ResultModel {
     }
 }
 
-/// HTTP client for interacting with the iExec result proxy API.
-///
-/// This client can be created directly with a base URL using [`new()`].
-///
-/// # Example
-///
-/// ```rust
-/// use crate::api::result_proxy_api_client::ResultProxyApiClient;
-///
-/// let client = ResultProxyApiClient::new("https://result.v8-bellecour.iex.ec");
-/// ```
 pub struct ResultProxyApiClient {
     base_url: String,
     client: Client,
 }
 
 impl ResultProxyApiClient {
+    /// Creates a new HTTP client for interacting with the iExec result proxy API.
+    ///
+    /// This function initializes a client with the provided base URL. The client can then be used
+    /// to upload computation results to IPFS via the result proxy service.
+    ///
+    /// # Arguments
+    ///
+    /// * `base_url` - The base URL of the result proxy service (e.g., "https://result.v8-bellecour.iex.ec")
+    ///
+    /// # Returns
+    ///
+    /// A new `ResultProxyApiClient` instance configured with the provided base URL.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use crate::api::result_proxy_api_client::ResultProxyApiClient;
+    ///
+    /// let client = ResultProxyApiClient::new("https://result.v8-bellecour.iex.ec");
+    /// ```
     pub fn new(base_url: &str) -> Self {
         Self {
             base_url: base_url.to_string(),
