@@ -5,7 +5,8 @@ use crate::compute::{
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
 };
 use log::{debug, error, info};
-use mockall::automock;
+#[cfg(test)]
+use mockall::{automock, predicate::*};
 use std::{
     fs::{self, File},
     io::{self, Write},
@@ -47,7 +48,7 @@ const IPFS_RESULT_STORAGE_PROVIDER: &str = "ipfs";
 ///     // ... implement other methods
 /// }
 /// ```
-#[automock]
+#[cfg_attr(test, automock)]
 pub trait Web2ResultInterface {
     fn encrypt_and_upload_result(
         &self,
@@ -442,7 +443,6 @@ impl Web2ResultInterface for Web2ResultService {
 mod tests {
     use super::*;
     use crate::compute::computed_file::ComputedFile;
-    use mockall::predicate::*;
     use std::{
         fs::{self, File},
         io::Write,
