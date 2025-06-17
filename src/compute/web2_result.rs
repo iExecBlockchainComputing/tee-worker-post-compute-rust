@@ -192,7 +192,6 @@ impl Web2ResultService {
 }
 
 impl Web2ResultInterface for Web2ResultService {
-
     /// Executes the complete result processing workflow.
     ///
     /// This is the main entry point for processing computation results. It orchestrates
@@ -231,8 +230,15 @@ impl Web2ResultInterface for Web2ResultService {
             }
         };
 
-        let result_path = zip_path; // eventually_encrypt_result(&zip_path) here
+        let result_path = zip_path.clone(); // eventually_encrypt_result(&zip_path) here
         self.upload_result(computed_file, &result_path)?; //TODO Share result link to beneficiary
+
+        // Clean up the temporary zip file
+        if let Err(e) = fs::remove_file(&zip_path) {
+            error!("Failed to remove temporary zip file {}: {}", zip_path, e);
+            // We don't return an error here as the upload was successful
+        };
+
         Ok(())
     }
 
