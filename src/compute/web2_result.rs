@@ -442,12 +442,7 @@ impl Web2ResultInterface for Web2ResultService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compute::computed_file::ComputedFile;
-    use std::{
-        fs::{self, File},
-        io::Write,
-        os::unix::fs::symlink,
-    };
+    use std::os::unix::fs::symlink;
     use temp_env;
     use tempfile::TempDir;
     use wiremock::{
