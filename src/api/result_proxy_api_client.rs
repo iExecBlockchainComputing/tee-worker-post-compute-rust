@@ -279,51 +279,52 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn upload_to_ipfs_returns_error_when_server_returns_400() {
-        let mock_server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(path("/v1/results"))
-            .respond_with(ResponseTemplate::new(400).set_body_string("Bad Request"))
-            .mount(&mock_server)
-            .await;
+    async fn upload_to_ipfs_returns_error_for_all_error_codes() {
+        let test_cases = vec![
+            (400, "400", "Bad Request"),
+            (401, "401", "Unauthorized"),
+            (403, "403", "Forbidden"),
+            (404, "404", "Not Found"),
+            (500, "500", "Internal Server Error"),
+            (502, "502", "Bad Gateway"),
+            (503, "503", "Service Unavailable"),
+        ];
 
-        let result = tokio::task::spawn_blocking(move || {
-            let client = ResultProxyApiClient::new(&mock_server.uri());
-            let model = ResultModel::default();
-            client.upload_to_ipfs(TEST_TOKEN, &model)
-        })
-        .await
-        .expect("Task panicked");
+        for (status_code, expected_error_contains, description) in test_cases {
+            let mock_server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .and(path("/v1/results"))
+                .respond_with(
+                    ResponseTemplate::new(status_code)
+                        .set_body_string(format!("{} Error", status_code)),
+                )
+                .mount(&mock_server)
+                .await;
 
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        assert!(error.to_string().contains("400"));
-    }
+            let result = tokio::task::spawn_blocking(move || {
+                let client = ResultProxyApiClient::new(&mock_server.uri());
+                let model = ResultModel::default();
+                client.upload_to_ipfs(TEST_TOKEN, &model)
+            })
+            .await
+            .expect("Task panicked");
 
-    #[tokio::test]
-    async fn upload_to_ipfs_returns_error_when_server_returns_500() {
-        let mock_server = MockServer::start().await;
-        Mock::given(method("POST"))
-            .and(path("/v1/results"))
-            .respond_with(ResponseTemplate::new(500).set_body_string("Internal Server Error"))
-            .mount(&mock_server)
-            .await;
-
-        let model = ResultModel {
-            chain_task_id: EMPTY_HEX_STRING_32.to_string(),
-            ..Default::default()
-        };
-
-        let result = tokio::task::spawn_blocking(move || {
-            let client = ResultProxyApiClient::new(&mock_server.uri());
-            client.upload_to_ipfs(TEST_TOKEN, &model)
-        })
-        .await
-        .expect("Task panicked");
-
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        assert!(error.to_string().contains("500"));
+            assert!(
+                result.is_err(),
+                "Expected error for status code {} ({})",
+                status_code,
+                description
+            );
+            let error = result.unwrap_err();
+            assert!(
+                error.to_string().contains(expected_error_contains),
+                "Error message should contain '{}' for status code {} ({}), but got: {}",
+                expected_error_contains,
+                status_code,
+                description,
+                error
+            );
+        }
     }
     // endregion
 }
