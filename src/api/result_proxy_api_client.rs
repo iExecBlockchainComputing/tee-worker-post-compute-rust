@@ -252,17 +252,11 @@ mod tests {
         };
 
         let mock_server = MockServer::start().await;
+        let json = serde_json::to_value(&expected_model).unwrap();
         Mock::given(method("POST"))
             .and(path("/v1/results"))
             .and(header("Authorization", TEST_TOKEN))
-            .and(body_json(json!({
-                "chainTaskId": TEST_TASK_ID,
-                "dealId": expected_model.deal_id,
-                "taskIndex": 0,
-                "zip": zip_content.to_vec(),
-                "deterministicHash": TEST_DETERMINISTIC_HASH,
-                "enclaveSignature": TEST_ENCLAVE_SIGNATURE
-            })))
+            .and(body_json(json))
             .respond_with(ResponseTemplate::new(200).set_body_string(TEST_IPFS_LINK))
             .mount(&mock_server)
             .await;
