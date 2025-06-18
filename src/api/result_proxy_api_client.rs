@@ -22,10 +22,6 @@ pub struct ResultModel {
     pub deal_id: String,
     /// Index of the task within the deal
     pub task_index: u32,
-    /// Docker image used for computation
-    pub image: String,
-    /// Command executed during computation
-    pub cmd: String,
     /// Compressed result data as a byte array
     pub zip: Vec<u8>,
     /// Cryptographic hash of the computation result
@@ -40,8 +36,6 @@ impl Default for ResultModel {
             chain_task_id: String::from(EMPTY_HEX_STRING_32),
             deal_id: String::from(EMPTY_HEX_STRING_32),
             task_index: 0,
-            image: String::new(),
-            cmd: String::new(),
             zip: vec![],
             deterministic_hash: String::new(),
             enclave_signature: String::from(EMPTY_WEB3_SIG),
@@ -173,8 +167,6 @@ mod tests {
     const TEST_DEAL_ID: &str = "0x456";
     const TEST_DETERMINISTIC_HASH: &str = "0xabc";
     const TEST_ENCLAVE_SIGNATURE: &str = "0xdef";
-    const TEST_IMAGE: &str = "test-image";
-    const TEST_CMD: &str = "test-cmd";
     const TEST_IPFS_LINK: &str = "ipfs://QmHash123";
     const TEST_TOKEN: &str = "test-token";
 
@@ -185,8 +177,6 @@ mod tests {
         assert_eq!(model.chain_task_id, EMPTY_HEX_STRING_32);
         assert_eq!(model.deal_id, EMPTY_HEX_STRING_32);
         assert_eq!(model.task_index, 0);
-        assert_eq!(model.image, "");
-        assert_eq!(model.cmd, "");
         assert!(model.zip.is_empty());
         assert_eq!(model.deterministic_hash, "");
         assert_eq!(model.enclave_signature, EMPTY_WEB3_SIG);
@@ -198,8 +188,6 @@ mod tests {
             chain_task_id: TEST_TASK_ID.to_string(),
             deal_id: TEST_DEAL_ID.to_string(),
             task_index: 5,
-            image: TEST_IMAGE.to_string(),
-            cmd: TEST_CMD.to_string(),
             zip: vec![1, 2, 3],
             deterministic_hash: TEST_DETERMINISTIC_HASH.to_string(),
             enclave_signature: TEST_ENCLAVE_SIGNATURE.to_string(),
@@ -225,8 +213,6 @@ mod tests {
         assert_eq!(json["chainTaskId"], TEST_TASK_ID);
         assert_eq!(json["dealId"], TEST_DEAL_ID);
         assert_eq!(json["taskIndex"], 5);
-        assert_eq!(json["image"], TEST_IMAGE);
-        assert_eq!(json["cmd"], TEST_CMD);
         assert_eq!(json["zip"], serde_json::json!([1, 2, 3]));
         assert_eq!(json["deterministicHash"], TEST_DETERMINISTIC_HASH);
         assert_eq!(json["enclaveSignature"], TEST_ENCLAVE_SIGNATURE);
@@ -234,24 +220,23 @@ mod tests {
 
     #[test]
     fn result_model_deserializes_from_camel_case_when_parsing_json() {
-        let json_str = format!(r#"{{
+        let json_str = format!(
+            r#"{{
             "chainTaskId": "{}",
             "dealId": "{}",
             "taskIndex": 5,
-            "image": "{}",
-            "cmd": "{}",
             "zip": [1, 2, 3],
             "deterministicHash": "{}",
             "enclaveSignature": "{}"
-        }}"#, TEST_TASK_ID, TEST_DEAL_ID, TEST_IMAGE, TEST_CMD, TEST_DETERMINISTIC_HASH, TEST_ENCLAVE_SIGNATURE);
+        }}"#,
+            TEST_TASK_ID, TEST_DEAL_ID, TEST_DETERMINISTIC_HASH, TEST_ENCLAVE_SIGNATURE
+        );
 
         let model: ResultModel = serde_json::from_str(&json_str).unwrap();
 
         assert_eq!(model.chain_task_id, TEST_TASK_ID);
         assert_eq!(model.deal_id, TEST_DEAL_ID);
         assert_eq!(model.task_index, 5);
-        assert_eq!(model.image, TEST_IMAGE);
-        assert_eq!(model.cmd, TEST_CMD);
         assert_eq!(model.zip, vec![1, 2, 3]);
         assert_eq!(model.deterministic_hash, TEST_DETERMINISTIC_HASH);
         assert_eq!(model.enclave_signature, TEST_ENCLAVE_SIGNATURE);
@@ -286,8 +271,6 @@ mod tests {
                 "chainTaskId": TEST_TASK_ID,
                 "dealId": expected_model.deal_id,
                 "taskIndex": 0,
-                "image": "",
-                "cmd": "",
                 "zip": zip_content.to_vec(),
                 "deterministicHash": TEST_DETERMINISTIC_HASH,
                 "enclaveSignature": TEST_ENCLAVE_SIGNATURE
