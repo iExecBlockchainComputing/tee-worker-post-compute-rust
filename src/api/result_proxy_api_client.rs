@@ -193,29 +193,17 @@ mod tests {
             enclave_signature: TEST_ENCLAVE_SIGNATURE.to_string(),
         };
 
-        let json = serde_json::to_value(&model).unwrap();
+        let expected = json!({
+            "chainTaskId": TEST_TASK_ID,
+            "dealId": TEST_DEAL_ID,
+            "taskIndex": 5,
+            "zip": [1, 2, 3],
+            "deterministicHash": TEST_DETERMINISTIC_HASH,
+            "enclaveSignature": TEST_ENCLAVE_SIGNATURE
+        });
 
-        // Verify camelCase field names
-        assert!(json.get("chainTaskId").is_some());
-        assert!(json.get("dealId").is_some());
-        assert!(json.get("taskIndex").is_some());
-        assert!(json.get("deterministicHash").is_some());
-        assert!(json.get("enclaveSignature").is_some());
-
-        // Verify snake_case fields are NOT present
-        assert!(json.get("chain_task_id").is_none());
-        assert!(json.get("deal_id").is_none());
-        assert!(json.get("task_index").is_none());
-        assert!(json.get("deterministic_hash").is_none());
-        assert!(json.get("enclave_signature").is_none());
-
-        // Verify values
-        assert_eq!(json["chainTaskId"], TEST_TASK_ID);
-        assert_eq!(json["dealId"], TEST_DEAL_ID);
-        assert_eq!(json["taskIndex"], 5);
-        assert_eq!(json["zip"], serde_json::json!([1, 2, 3]));
-        assert_eq!(json["deterministicHash"], TEST_DETERMINISTIC_HASH);
-        assert_eq!(json["enclaveSignature"], TEST_ENCLAVE_SIGNATURE);
+        let v = serde_json::to_value(model).unwrap();
+        assert_eq!(v, expected);
     }
 
     #[test]
