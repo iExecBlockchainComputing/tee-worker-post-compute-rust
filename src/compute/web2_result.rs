@@ -18,6 +18,7 @@ use zip::{ZipWriter, write::FileOptions};
 const SLASH_POST_COMPUTE_TMP: &str = "/post-compute-tmp";
 const RESULT_FILE_NAME_MAX_LENGTH: usize = 31;
 const IPFS_RESULT_STORAGE_PROVIDER: &str = "ipfs";
+const DROPBOX_RESULT_STORAGE_PROVIDER: &str = "dropbox";
 
 /// Trait defining the interface for Web2 result processing operations.
 ///
@@ -359,7 +360,6 @@ impl Web2ResultInterface for Web2ResultService {
     ///
     /// * `Ok(String)` - The storage link where the result was uploaded
     /// * `Err(ReplicateStatusCause)` - Upload failed
-    #[allow(clippy::wildcard_in_or_patterns)]
     fn upload_result(
         &self,
         computed_file: &ComputedFile,
@@ -379,8 +379,28 @@ impl Web2ResultInterface for Web2ResultService {
             ReplicateStatusCause::PostComputeStorageTokenMissing,
         )?;
         let result_link = match storage_provider.as_str() {
-            IPFS_RESULT_STORAGE_PROVIDER | _ => {
+            IPFS_RESULT_STORAGE_PROVIDER => {
                 info!("Upload stage mode: IPFS_STORAGE");
+                self.upload_to_ipfs_with_iexec_proxy(
+                    computed_file,
+                    &storage_proxy,
+                    &storage_token,
+                    file_to_upload_path,
+                )?
+            }
+            DROPBOX_RESULT_STORAGE_PROVIDER => {
+                error!(
+                    "Dropbox storage provider is not supported [task_id:{}]",
+                    computed_file.task_id.as_ref().unwrap()
+                );
+                return Err(ReplicateStatusCause::PostComputeDropboxUploadFailed);
+            }
+            _ => {
+                info!(
+                    "Unknown storage provider '{}', falling back to IPFS [task_id:{}]",
+                    storage_provider,
+                    computed_file.task_id.as_ref().unwrap()
+                );
                 self.upload_to_ipfs_with_iexec_proxy(
                     computed_file,
                     &storage_proxy,

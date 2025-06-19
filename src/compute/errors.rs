@@ -7,8 +7,8 @@ use thiserror::Error;
 pub enum ReplicateStatusCause {
     #[error("computed.json file missing")]
     PostComputeComputedFileNotFound,
-    #[error("Task ID related environment variable is missing")]
-    PostComputeTaskIdMissing,
+    #[error("Failed to upload to Dropbox")]
+    PostComputeDropboxUploadFailed,
     #[error("Unexpected error occurred")]
     PostComputeFailedUnknownIssue,
     #[error("Invalid enclave challenge private key")]
@@ -27,6 +27,8 @@ pub enum ReplicateStatusCause {
     PostComputeSendComputedFileFailed,
     #[error("Storage token related environment variable is missing")]
     PostComputeStorageTokenMissing,
+    #[error("Task ID related environment variable is missing")]
+    PostComputeTaskIdMissing,
     #[error("Tee challenge private key related environment variable is missing")]
     PostComputeTeeChallengePrivateKeyMissing,
     #[error("Result file name too long")]
