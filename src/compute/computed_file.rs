@@ -30,7 +30,7 @@ use std::{fs, path::Path};
 ///   "error-message": null
 /// }
 /// ```
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all(deserialize = "kebab-case"))]
 pub struct ComputedFile {
     pub deterministic_output_path: Option<String>,
