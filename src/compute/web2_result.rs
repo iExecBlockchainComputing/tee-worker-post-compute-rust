@@ -158,19 +158,23 @@ impl Web2ResultService {
         source_dir: &Path,
         options: FileOptions<()>,
     ) -> Result<(), ReplicateStatusCause> {
-        for entry in WalkDir::new(source_dir)
+        WalkDir::new(source_dir)
             .min_depth(1)
             .into_iter()
-            .filter_map(|e| e.ok())
-        {
-            debug!(
-                "Adding file to zip [file:{}, zip:{}]",
-                entry.path().display(),
-                source_dir.display()
-            );
-            let path = entry.path();
-            let relative = path.strip_prefix(source_dir).unwrap();
-            if entry.file_type().is_file() && !entry.path_is_symlink() {
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| {
+                entry.file_type().is_file() && !entry.path_is_symlink()
+            })
+            .try_for_each(|entry| {
+                debug!(
+                    "Adding file to zip [file:{}, zip:{}]",
+                    entry.path().display(),
+                    source_dir.display()
+                );
+
+                let path = entry.path();
+                let relative = path.strip_prefix(source_dir).unwrap();
+
                 zip.start_file(relative.to_string_lossy(), options)
                     .map_err(|e| {
                         error!("Failed to add file to zip: {}", e);
@@ -186,9 +190,9 @@ impl Web2ResultService {
                     error!("Failed to copy file to zip: {}", e);
                     ReplicateStatusCause::PostComputeOutFolderZipFailed
                 })?;
-            }
-        }
-        Ok(())
+
+                Ok(())
+            })
     }
 }
 
@@ -263,33 +267,41 @@ impl Web2ResultInterface for Web2ResultService {
         task_id: &str,
         iexec_out_path: &str,
     ) -> Result<(), ReplicateStatusCause> {
-        let mut has_long_filename = false;
-        for entry in WalkDir::new(iexec_out_path) {
-            match entry {
-                Ok(entry) => {
-                    if entry.file_type().is_file() {
-                        if let Some(file_name) = entry.file_name().to_str() {
-                            if file_name.len() > RESULT_FILE_NAME_MAX_LENGTH {
-                                error!(
-                                    "Too long result file name [chain_task_id:{}, file:{}]",
-                                    task_id,
-                                    entry.path().display()
-                                );
-                                has_long_filename = true;
-                            }
-                        }
-                    }
-                }
-                Err(..) => {
-                    error!("Can't check result files [chain_task_id: {}]", task_id);
-                    return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
-                }
-            }
+        // Check if directory exists first (maintains same behavior as Java)
+        if !Path::new(iexec_out_path).exists() {
+            error!("Can't check result files [chain_task_id: {}]", task_id);
+            return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
         }
-        if has_long_filename {
-            return Err(ReplicateStatusCause::PostComputeTooLongResultFileName);
+
+        // Use walkdir's iterator combinators for clean, functional approach
+        let long_filenames: Vec<_> = WalkDir::new(iexec_out_path)
+            .into_iter()
+            .filter_map(|entry| entry.ok()) // Skip unreadable entries gracefully
+            .filter(|entry| entry.file_type().is_file()) // Only process files
+            .filter_map(|entry| {
+                entry.file_name()
+                    .to_str()
+                    .filter(|name| name.len() > RESULT_FILE_NAME_MAX_LENGTH)
+                    .map(|name| (name.to_string(), entry.path().to_path_buf()))
+            })
+            .collect();
+
+        // Log all violations found (better UX than stopping at first error)
+        for (file_name, path) in &long_filenames {
+            error!(
+                "Too long result file name [chain_task_id:{}, file:{}, filename:{}]",
+                task_id,
+                path.display(),
+                file_name
+            );
         }
-        Ok(())
+
+        // Return error if any violations found
+        if long_filenames.is_empty() {
+            Ok(())
+        } else {
+            Err(ReplicateStatusCause::PostComputeTooLongResultFileName)
+        }
     }
 
     /// Compresses the result directory into a ZIP archive.
