@@ -71,7 +71,7 @@ impl ResultProxyApiClient {
     /// ```
     pub fn new(base_url: &str) -> Self {
         Self {
-            base_url: base_url.to_string(),
+            base_url: String::from(base_url),
             client: Client::new(),
         }
     }
@@ -114,7 +114,7 @@ impl ResultProxyApiClient {
     ///
     /// let client = ResultProxyApiClient::new("https://result-proxy.iex.ec");
     /// let result_model = ResultModel {
-    ///     chain_task_id: "0x123...".to_string(),
+    ///     chain_task_id: String::from("0x123..."),
     ///     zip: compressed_data,
     ///     deterministic_hash: computed_hash,
     ///     enclave_signature: tee_signature,
@@ -185,12 +185,12 @@ mod tests {
     #[test]
     fn result_model_serializes_to_camel_case_when_converted_to_json() {
         let model = ResultModel {
-            chain_task_id: TEST_TASK_ID.to_string(),
-            deal_id: TEST_DEAL_ID.to_string(),
+            chain_task_id: String::from(TEST_TASK_ID),
+            deal_id: String::from(TEST_DEAL_ID),
             task_index: 5,
             zip: vec![1, 2, 3],
-            deterministic_hash: TEST_DETERMINISTIC_HASH.to_string(),
-            enclave_signature: TEST_ENCLAVE_SIGNATURE.to_string(),
+            deterministic_hash: String::from(TEST_DETERMINISTIC_HASH),
+            enclave_signature: String::from(TEST_ENCLAVE_SIGNATURE),
         };
 
         let expected = json!({
@@ -244,9 +244,9 @@ mod tests {
         let zip_content = b"test content";
 
         let expected_model = ResultModel {
-            chain_task_id: TEST_TASK_ID.to_string(),
-            deterministic_hash: TEST_DETERMINISTIC_HASH.to_string(),
-            enclave_signature: TEST_ENCLAVE_SIGNATURE.to_string(),
+            chain_task_id: String::from(TEST_TASK_ID),
+            deterministic_hash: String::from(TEST_DETERMINISTIC_HASH),
+            enclave_signature: String::from(TEST_ENCLAVE_SIGNATURE),
             zip: zip_content.to_vec(),
             ..Default::default()
         };

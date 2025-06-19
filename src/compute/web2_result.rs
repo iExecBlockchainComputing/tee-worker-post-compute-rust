@@ -92,9 +92,9 @@ pub trait Web2ResultInterface {
 ///
 /// let service = Web2ResultService;
 /// let computed_file = ComputedFile {
-///     task_id: Some("0x123".to_string()),
-///     result_digest: Some("0xabc".to_string()),
-///     enclave_signature: Some("0xdef".to_string()),
+///     task_id: Some(String::from("0x123")),
+///     result_digest: Some(String::from("0xabc")),
+///     enclave_signature: Some(String::from("0xdef")),
 ///     ..Default::default()
 /// };
 ///
@@ -162,9 +162,7 @@ impl Web2ResultService {
             .min_depth(1)
             .into_iter()
             .filter_map(|entry| entry.ok())
-            .filter(|entry| {
-                entry.file_type().is_file() && !entry.path_is_symlink()
-            })
+            .filter(|entry| entry.file_type().is_file() && !entry.path_is_symlink())
             .try_for_each(|entry| {
                 debug!(
                     "Adding file to zip [file:{}, zip:{}]",
@@ -279,10 +277,11 @@ impl Web2ResultInterface for Web2ResultService {
             .filter_map(|entry| entry.ok()) // Skip unreadable entries gracefully
             .filter(|entry| entry.file_type().is_file()) // Only process files
             .filter_map(|entry| {
-                entry.file_name()
+                entry
+                    .file_name()
                     .to_str()
                     .filter(|name| name.len() > RESULT_FILE_NAME_MAX_LENGTH)
-                    .map(|name| (name.to_string(), entry.path().to_path_buf()))
+                    .map(|name| (String::from(name), entry.path().to_path_buf()))
             })
             .collect();
 
@@ -342,7 +341,7 @@ impl Web2ResultInterface for Web2ResultService {
         })?;
 
         info!("Folder zipped [path:{}]", zip_path.display());
-        Ok(zip_path.to_string_lossy().to_string())
+        Ok(String::from(zip_path.to_string_lossy()))
     }
 
     /// Uploads the compressed result to the configured storage provider.
@@ -465,9 +464,9 @@ mod tests {
 
     fn create_test_computed_file(task_id: &str) -> ComputedFile {
         ComputedFile {
-            task_id: Some(task_id.to_string()),
-            result_digest: Some("0xabc123".to_string()),
-            enclave_signature: Some("0xdef456".to_string()),
+            task_id: Some(String::from(task_id)),
+            result_digest: Some(String::from("0xabc123")),
+            enclave_signature: Some(String::from("0xdef456")),
             ..Default::default()
         }
     }
@@ -506,13 +505,13 @@ mod tests {
             .expect_zip_iexec_out()
             .with(eq("/iexec_out"), eq(SLASH_POST_COMPUTE_TMP))
             .times(1)
-            .returning(|_, _| Ok(zip_path.to_string()));
+            .returning(move |_, _| Ok(String::from(zip_path)));
 
         web2_result_mock
             .expect_upload_result()
             .with(eq(computed_file.clone()), eq(zip_path))
             .times(1)
-            .returning(|_, _| Ok("https://ipfs.io/ipfs/QmHash".to_string()));
+            .returning(|_, _| Ok(String::from("https://ipfs.io/ipfs/QmHash")));
 
         let result = run_encrypt_and_upload_result(&web2_result_mock, &computed_file);
         assert!(result.is_ok());
@@ -568,7 +567,7 @@ mod tests {
 
         web2_result_mock
             .expect_zip_iexec_out()
-            .returning(|_, _| Ok(zip_path.to_string()));
+            .returning(move |_, _| Ok(String::from(zip_path)));
 
         web2_result_mock
             .expect_upload_result()
@@ -756,13 +755,12 @@ mod tests {
         let zip_path = result.unwrap();
         assert!(PathBuf::from(&zip_path).exists());
 
-        use zip::ZipArchive;
         let file = File::open(&zip_path).unwrap();
         let archive = ZipArchive::new(file).unwrap();
-        let file_names: Vec<String> = archive.file_names().map(|s| s.to_string()).collect();
-        assert!(file_names.contains(&"root.txt".to_string()));
-        assert!(file_names.contains(&"subdir/sub.txt".to_string()));
-        assert!(file_names.contains(&"subdir/nested/nested.txt".to_string()));
+        let file_names: Vec<String> = archive.file_names().map(String::from).collect();
+        assert!(file_names.contains(&String::from("root.txt")));
+        assert!(file_names.contains(&String::from("subdir/sub.txt")));
+        assert!(file_names.contains(&String::from("subdir/nested/nested.txt")));
     }
 
     #[test]
@@ -804,11 +802,11 @@ mod tests {
         let file = File::open(zip_path).unwrap();
         let archive = ZipArchive::new(file).unwrap();
 
-        let actual_files: Vec<String> = archive.file_names().map(|name| name.to_string()).collect();
+        let actual_files: Vec<String> = archive.file_names().map(String::from).collect();
 
         for expected_file in expected_files {
             assert!(
-                actual_files.contains(&expected_file.to_string()),
+                actual_files.contains(&String::from(*expected_file)),
                 "Zip archive should contain file '{}', but found only: {:?}",
                 expected_file,
                 actual_files
@@ -933,7 +931,7 @@ mod tests {
                         function(|path: &str| path.ends_with("test.zip")),
                     )
                     .times(1)
-                    .returning(|_, _, _, _| Ok(expected_link.to_string()));
+                    .returning(move |_, _, _, _| Ok(String::from(expected_link)));
 
                 let result =
                     run_upload_result(&mock_service, &computed_file, file_path.to_str().unwrap());
@@ -1020,9 +1018,9 @@ mod tests {
         file.write_all(b"test zip content").unwrap();
 
         let computed_file = ComputedFile {
-            task_id: Some("0x0".to_string()),
-            result_digest: Some("0xdigest".to_string()),
-            enclave_signature: Some("0xsignature".to_string()),
+            task_id: Some(String::from("0x0")),
+            result_digest: Some(String::from("0xdigest")),
+            enclave_signature: Some(String::from("0xsignature")),
             ..Default::default()
         };
 
