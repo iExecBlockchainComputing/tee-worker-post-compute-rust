@@ -812,55 +812,21 @@ mod tests {
             source_dir.path().to_str().unwrap(),
             dest_dir.path().to_str().unwrap(),
         );
-
         assert!(result.is_ok());
+
+        let zip_path = result.unwrap();
+        let file = File::open(&zip_path).unwrap();
+        let archive = ZipArchive::new(file).unwrap();
+        let mut file_names: Vec<&str> = archive.file_names().collect();
+        file_names.sort();
+        let mut expected = vec![".hidden", "file with spaces.txt", "file-with-dashes.log"];
+        expected.sort();
+        assert_eq!(file_names, expected);
+        assert_eq!(archive.len(), 3, "Zip should contain exactly 3 files");
     }
     // endregion
 
     // region add_directory_to_zip
-    fn verify_zip_contents(zip_path: &str, expected_files: &[&str]) {
-        let file = File::open(zip_path).unwrap();
-        let archive = ZipArchive::new(file).unwrap();
-
-        let actual_files: Vec<String> = archive.file_names().map(String::from).collect();
-
-        for expected_file in expected_files {
-            assert!(
-                actual_files.contains(&String::from(*expected_file)),
-                "Zip archive should contain file '{}', but found only: {:?}",
-                expected_file,
-                actual_files
-            );
-        }
-    }
-
-    #[test]
-    fn zip_iexec_out_correctly_adds_files_to_zip() {
-        let source_dir = TempDir::new().unwrap();
-        let dest_dir = TempDir::new().unwrap();
-
-        File::create(source_dir.path().join("file1.txt"))
-            .unwrap()
-            .write_all(b"content1")
-            .unwrap();
-
-        let sub_dir = source_dir.path().join("subdir");
-        fs::create_dir(&sub_dir).unwrap();
-        File::create(sub_dir.join("file2.txt"))
-            .unwrap()
-            .write_all(b"content2")
-            .unwrap();
-
-        let result = Web2ResultService.zip_iexec_out(
-            source_dir.path().to_str().unwrap(),
-            dest_dir.path().to_str().unwrap(),
-        );
-        assert!(result.is_ok());
-
-        let zip_path = result.unwrap();
-        verify_zip_contents(&zip_path, &["file1.txt", "subdir/file2.txt"]);
-    }
-
     #[test]
     #[cfg(unix)]
     fn zip_iexec_out_skips_symlinks_via_add_directory() {
@@ -873,14 +839,14 @@ mod tests {
             .unwrap();
         symlink("/tmp/target", source_dir.path().join("symlink.txt")).unwrap();
 
-        let result = Web2ResultService.zip_iexec_out(
-            source_dir.path().to_str().unwrap(),
-            dest_dir.path().to_str().unwrap(),
+        let result = Web2ResultService.add_directory_to_zip(
+            &mut ZipWriter::new(File::create(dest_dir.path().join("test.zip")).unwrap()),
+            source_dir.path(),
+            FileOptions::default(),
         );
         assert!(result.is_ok());
 
-        let zip_path = result.unwrap();
-        let file = File::open(&zip_path).unwrap();
+        let file = File::open(dest_dir.path().join("test.zip")).unwrap();
         let mut archive = ZipArchive::new(file).unwrap();
         assert_eq!(archive.len(), 1);
         assert!(archive.by_name("regular.txt").is_ok());
@@ -1114,23 +1080,28 @@ mod tests {
             .unwrap()
             .write_all(b"content1")
             .unwrap();
-        File::create(source_dir.path().join("file2.txt"))
+
+        let sub_dir = source_dir.path().join("subdir");
+        fs::create_dir(&sub_dir).unwrap();
+        File::create(sub_dir.join("file2.txt"))
             .unwrap()
             .write_all(b"content2")
             .unwrap();
 
-        let zip_path = dest_dir.path().join("test.zip");
-        let zip_file = File::create(&zip_path).unwrap();
-        let mut zip = ZipWriter::new(zip_file);
-        let options = FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
-
-        let result = Web2ResultService.add_directory_to_zip(&mut zip, source_dir.path(), options);
+        let result = Web2ResultService.add_directory_to_zip(
+            &mut ZipWriter::new(File::create(dest_dir.path().join("test.zip")).unwrap()),
+            source_dir.path(),
+            FileOptions::default(),
+        );
         assert!(result.is_ok());
 
-        zip.finish().unwrap();
-        let file = File::open(&zip_path).unwrap();
+        let file = File::open(dest_dir.path().join("test.zip")).unwrap();
         let archive = ZipArchive::new(file).unwrap();
-        assert_eq!(archive.len(), 2);
+        let mut file_names: Vec<&str> = archive.file_names().collect();
+        file_names.sort();
+        let mut expected_file_names = vec!["file1.txt", "subdir/file2.txt"];
+        expected_file_names.sort();
+        assert_eq!(file_names, expected_file_names);
     }
 
     #[test]
@@ -1145,16 +1116,14 @@ mod tests {
             .unwrap();
         symlink("/tmp/target", source_dir.path().join("symlink.txt")).unwrap();
 
-        let zip_path = dest_dir.path().join("test.zip");
-        let zip_file = File::create(&zip_path).unwrap();
-        let mut zip = ZipWriter::new(zip_file);
-        let options = FileOptions::default();
-
-        let result = Web2ResultService.add_directory_to_zip(&mut zip, source_dir.path(), options);
+        let result = Web2ResultService.add_directory_to_zip(
+            &mut ZipWriter::new(File::create(dest_dir.path().join("test.zip")).unwrap()),
+            source_dir.path(),
+            FileOptions::default(),
+        );
         assert!(result.is_ok());
 
-        zip.finish().unwrap();
-        let file = File::open(&zip_path).unwrap();
+        let file = File::open(dest_dir.path().join("test.zip")).unwrap();
         let mut archive = ZipArchive::new(file).unwrap();
         assert_eq!(archive.len(), 1);
         assert!(archive.by_name("regular.txt").is_ok());
