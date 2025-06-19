@@ -266,13 +266,11 @@ impl Web2ResultInterface for Web2ResultService {
         task_id: &str,
         iexec_out_path: &str,
     ) -> Result<(), ReplicateStatusCause> {
-        // Check if directory exists first (maintains same behavior as Java)
         if !Path::new(iexec_out_path).exists() {
             error!("Can't check result files [chain_task_id: {}]", task_id);
             return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
         }
 
-        // Use walkdir's iterator combinators for clean, functional approach
         let long_filenames: Vec<_> = WalkDir::new(iexec_out_path)
             .into_iter()
             .filter_map(|entry| entry.ok()) // Skip unreadable entries gracefully
@@ -286,7 +284,6 @@ impl Web2ResultInterface for Web2ResultService {
             })
             .collect();
 
-        // Log all violations found (better UX than stopping at first error)
         for (file_name, path) in &long_filenames {
             error!(
                 "Too long result file name [chain_task_id:{}, file:{}, filename:{}]",
@@ -296,7 +293,6 @@ impl Web2ResultInterface for Web2ResultService {
             );
         }
 
-        // Return error if any violations found
         if long_filenames.is_empty() {
             Ok(())
         } else {
