@@ -438,9 +438,9 @@ impl Web2ResultInterface for Web2ResultService {
 
         let file_to_upload = fs::read(file_to_upload_path).map_err(|e| {
             error!(
-            "Can't upload_to_ipfs_with_iexec_proxy (missing file_path to upload) [taskId:{}, fileToUploadPath:{}]: {}",
-            task_id, file_to_upload_path, e
-        );
+                "Can't upload_to_ipfs_with_iexec_proxy (missing file_path to upload) [task_id:{}, file_to_upload_path:{}]: {}",
+                task_id, file_to_upload_path, e
+            );
             ReplicateStatusCause::PostComputeResultFileNotFound
         })?;
 
