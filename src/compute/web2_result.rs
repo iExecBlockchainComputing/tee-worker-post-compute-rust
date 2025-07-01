@@ -6,7 +6,7 @@ use crate::compute::{
 };
 use log::{debug, error, info};
 #[cfg(test)]
-use mockall::{automock, predicate::*};
+use mockall::automock;
 use std::{
     fs::{self, File},
     io::{self, Write},
@@ -469,6 +469,7 @@ impl Web2ResultInterface for Web2ResultService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mockall::predicate::{eq, function};
     use std::os::unix::fs::symlink;
     use temp_env;
     use tempfile::TempDir;
