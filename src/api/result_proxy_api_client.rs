@@ -25,7 +25,7 @@ pub struct ResultModel {
     /// Compressed result data as a byte array
     pub zip: Vec<u8>,
     /// Cryptographic hash of the computation result
-    pub deterministic_hash: String,
+    pub determinist_hash: String,
     /// TEE (Trusted Execution Environment) signature proving integrity
     pub enclave_signature: String,
 }
@@ -37,7 +37,7 @@ impl Default for ResultModel {
             deal_id: String::from(EMPTY_HEX_STRING_32),
             task_index: 0,
             zip: vec![],
-            deterministic_hash: String::new(),
+            determinist_hash: String::new(),
             enclave_signature: String::from(EMPTY_WEB3_SIG),
         }
     }
@@ -178,7 +178,7 @@ mod tests {
         assert_eq!(model.deal_id, EMPTY_HEX_STRING_32);
         assert_eq!(model.task_index, 0);
         assert!(model.zip.is_empty());
-        assert_eq!(model.deterministic_hash, "");
+        assert_eq!(model.determinist_hash, "");
         assert_eq!(model.enclave_signature, EMPTY_WEB3_SIG);
     }
 
@@ -189,7 +189,7 @@ mod tests {
             deal_id: String::from(TEST_DEAL_ID),
             task_index: 5,
             zip: vec![1, 2, 3],
-            deterministic_hash: String::from(TEST_DETERMINISTIC_HASH),
+            determinist_hash: String::from(TEST_DETERMINISTIC_HASH),
             enclave_signature: String::from(TEST_ENCLAVE_SIGNATURE),
         };
 
@@ -226,7 +226,7 @@ mod tests {
         assert_eq!(model.deal_id, TEST_DEAL_ID);
         assert_eq!(model.task_index, 5);
         assert_eq!(model.zip, vec![1, 2, 3]);
-        assert_eq!(model.deterministic_hash, TEST_DETERMINISTIC_HASH);
+        assert_eq!(model.determinist_hash, TEST_DETERMINISTIC_HASH);
         assert_eq!(model.enclave_signature, TEST_ENCLAVE_SIGNATURE);
     }
     //endregion
@@ -245,7 +245,7 @@ mod tests {
 
         let expected_model = ResultModel {
             chain_task_id: String::from(TEST_TASK_ID),
-            deterministic_hash: String::from(TEST_DETERMINISTIC_HASH),
+            determinist_hash: String::from(TEST_DETERMINISTIC_HASH),
             enclave_signature: String::from(TEST_ENCLAVE_SIGNATURE),
             zip: zip_content.to_vec(),
             ..Default::default()

@@ -446,7 +446,7 @@ impl Web2ResultInterface for Web2ResultService {
 
         let result_model = ResultModel {
             chain_task_id: task_id.clone(),
-            deterministic_hash: computed_file.result_digest.as_ref().unwrap().clone(),
+            determinist_hash: computed_file.result_digest.as_ref().unwrap().clone(),
             enclave_signature: computed_file.enclave_signature.as_ref().unwrap().clone(),
             zip: file_to_upload,
             ..Default::default()
