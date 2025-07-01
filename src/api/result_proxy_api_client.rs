@@ -116,7 +116,7 @@ impl ResultProxyApiClient {
     /// let result_model = ResultModel {
     ///     chain_task_id: "0x123...".to_string(),
     ///     zip: compressed_data,
-    ///     deterministic_hash: computed_hash,
+    ///     determinist_hash: computed_hash,
     ///     enclave_signature: tee_signature,
     ///     ..Default::default()
     /// };
@@ -165,7 +165,7 @@ mod tests {
     // Test constants
     const TEST_TASK_ID: &str = "0x123";
     const TEST_DEAL_ID: &str = "0x456";
-    const TEST_DETERMINISTIC_HASH: &str = "0xabc";
+    const TEST_DETERMINIST_HASH: &str = "0xabc";
     const TEST_ENCLAVE_SIGNATURE: &str = "0xdef";
     const TEST_IPFS_LINK: &str = "ipfs://QmHash123";
     const TEST_TOKEN: &str = "test-token";
@@ -189,7 +189,7 @@ mod tests {
             deal_id: TEST_DEAL_ID.to_string(),
             task_index: 5,
             zip: vec![1, 2, 3],
-            determinist_hash: TEST_DETERMINISTIC_HASH.to_string(),
+            determinist_hash: TEST_DETERMINIST_HASH.to_string(),
             enclave_signature: TEST_ENCLAVE_SIGNATURE.to_string(),
         };
 
@@ -198,7 +198,7 @@ mod tests {
             "dealId": TEST_DEAL_ID,
             "taskIndex": 5,
             "zip": [1, 2, 3],
-            "deterministicHash": TEST_DETERMINISTIC_HASH,
+            "deterministicHash": TEST_DETERMINIST_HASH,
             "enclaveSignature": TEST_ENCLAVE_SIGNATURE
         });
 
@@ -217,7 +217,7 @@ mod tests {
             "deterministicHash": "{}",
             "enclaveSignature": "{}"
         }}"#,
-            TEST_TASK_ID, TEST_DEAL_ID, TEST_DETERMINISTIC_HASH, TEST_ENCLAVE_SIGNATURE
+            TEST_TASK_ID, TEST_DEAL_ID, TEST_DETERMINIST_HASH, TEST_ENCLAVE_SIGNATURE
         );
 
         let model: ResultModel = serde_json::from_str(&json_str).unwrap();
@@ -226,7 +226,7 @@ mod tests {
         assert_eq!(model.deal_id, TEST_DEAL_ID);
         assert_eq!(model.task_index, 5);
         assert_eq!(model.zip, vec![1, 2, 3]);
-        assert_eq!(model.determinist_hash, TEST_DETERMINISTIC_HASH);
+        assert_eq!(model.determinist_hash, TEST_DETERMINIST_HASH);
         assert_eq!(model.enclave_signature, TEST_ENCLAVE_SIGNATURE);
     }
     //endregion
@@ -245,7 +245,7 @@ mod tests {
 
         let expected_model = ResultModel {
             chain_task_id: TEST_TASK_ID.to_string(),
-            determinist_hash: TEST_DETERMINISTIC_HASH.to_string(),
+            determinist_hash: TEST_DETERMINIST_HASH.to_string(),
             enclave_signature: TEST_ENCLAVE_SIGNATURE.to_string(),
             zip: zip_content.to_vec(),
             ..Default::default()
