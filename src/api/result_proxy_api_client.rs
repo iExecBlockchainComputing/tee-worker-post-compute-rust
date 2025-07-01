@@ -198,7 +198,7 @@ mod tests {
             "dealId": TEST_DEAL_ID,
             "taskIndex": 5,
             "zip": [1, 2, 3],
-            "deterministicHash": TEST_DETERMINIST_HASH,
+            "deterministHash": TEST_DETERMINIST_HASH,
             "enclaveSignature": TEST_ENCLAVE_SIGNATURE
         });
 
@@ -208,19 +208,16 @@ mod tests {
 
     #[test]
     fn result_model_deserializes_from_camel_case_when_parsing_json() {
-        let json_str = format!(
-            r#"{{
-            "chainTaskId": "{}",
-            "dealId": "{}",
+        let value = json!({
+            "chainTaskId": TEST_TASK_ID,
+            "dealId": TEST_DEAL_ID,
             "taskIndex": 5,
             "zip": [1, 2, 3],
-            "deterministicHash": "{}",
-            "enclaveSignature": "{}"
-        }}"#,
-            TEST_TASK_ID, TEST_DEAL_ID, TEST_DETERMINIST_HASH, TEST_ENCLAVE_SIGNATURE
-        );
+            "deterministHash": TEST_DETERMINIST_HASH,
+            "enclaveSignature": TEST_ENCLAVE_SIGNATURE
+        });
 
-        let model: ResultModel = serde_json::from_str(&json_str).unwrap();
+        let model: ResultModel = serde_json::from_value(value).unwrap();
 
         assert_eq!(model.chain_task_id, TEST_TASK_ID);
         assert_eq!(model.deal_id, TEST_DEAL_ID);
