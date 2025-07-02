@@ -1,6 +1,7 @@
 use crate::api::result_proxy_api_client::{ResultModel, ResultProxyApiClient};
 use crate::compute::{
     computed_file::ComputedFile,
+    encryption::eventually_encrypt_result,
     errors::ReplicateStatusCause,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
 };
@@ -234,7 +235,7 @@ impl Web2ResultInterface for Web2ResultService {
             }
         };
 
-        let result_path = zip_path.clone(); // eventually_encrypt_result(&zip_path) here
+        let result_path = eventually_encrypt_result(&zip_path)?;
         self.upload_result(computed_file, &result_path)?; //TODO Share result link to beneficiary
 
         // Clean up the temporary zip file
