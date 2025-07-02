@@ -3317,6 +3317,7 @@ version = "0.1.0"
 dependencies = [
  "alloy-signer",
  "alloy-signer-local",
+ "base64",
  "env_logger",
  "log",
  "mockall",
