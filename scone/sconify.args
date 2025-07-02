@@ -1,0 +1,10 @@
+--verbose
+--name=tee-worker-post-compute
+--base=alpine:3.21
+--from=${IMG_FROM}
+--to=${IMG_TO}
+--binary=/app/tee-worker-post-compute
+--heap=1G
+--stack=8M
+--host-path=/etc/hosts
+--host-path=/etc/resolv.conf
