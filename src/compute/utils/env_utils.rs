@@ -4,6 +4,9 @@ use std::env;
 pub enum TeeSessionEnvironmentVariable {
     IexecTaskId,
     ResultStorageCallback,
+    ResultStorageProvider,
+    ResultStorageProxy,
+    ResultStorageToken,
     SignTeeChallengePrivateKey,
     SignWorkerAddress,
     WorkerHostEnvVar,
@@ -14,6 +17,9 @@ impl TeeSessionEnvironmentVariable {
         match self {
             TeeSessionEnvironmentVariable::IexecTaskId => "IEXEC_TASK_ID",
             TeeSessionEnvironmentVariable::ResultStorageCallback => "RESULT_STORAGE_CALLBACK",
+            TeeSessionEnvironmentVariable::ResultStorageProvider => "RESULT_STORAGE_PROVIDER",
+            TeeSessionEnvironmentVariable::ResultStorageProxy => "RESULT_STORAGE_PROXY",
+            TeeSessionEnvironmentVariable::ResultStorageToken => "RESULT_STORAGE_TOKEN",
             TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey => {
                 "SIGN_TEE_CHALLENGE_PRIVATE_KEY"
             }
