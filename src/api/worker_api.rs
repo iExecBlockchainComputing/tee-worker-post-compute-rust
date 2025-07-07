@@ -3,7 +3,8 @@ use crate::compute::{
     errors::ReplicateStatusCause,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
 };
-use reqwest::{Error, blocking::Client, header::AUTHORIZATION};
+use log::error;
+use reqwest::{blocking::Client, header::AUTHORIZATION};
 use serde::Serialize;
 
 /// Represents payload that can be sent to the worker API to report the outcome of the
@@ -137,19 +138,32 @@ impl WorkerApiClient {
         authorization: &str,
         chain_task_id: &str,
         exit_cause: &ExitMessage,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ReplicateStatusCause> {
         let url = format!("{}/compute/post/{}/exit", self.base_url, chain_task_id);
-        let response = self
+        match self
             .client
             .post(&url)
             .header(AUTHORIZATION, authorization)
             .json(exit_cause)
-            .send()?;
-
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            Err(response.error_for_status().unwrap_err())
+            .send()
+        {
+            Ok(response) => {
+                if response.status().is_success() {
+                    Ok(())
+                } else {
+                    let status = response.status();
+                    let body = response.text().unwrap_or_default();
+                    error!(
+                        "Failed to send exit cause to worker: [status:{:?}, body:{:#?}]",
+                        status, body
+                    );
+                    Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
+                }
+            }
+            Err(e) => {
+                error!("An error occured while sending exit cause to worker: {}", e);
+                Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
+            }
         }
     }
 
@@ -198,19 +212,35 @@ impl WorkerApiClient {
         authorization: &str,
         chain_task_id: &str,
         computed_file: &ComputedFile,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ReplicateStatusCause> {
         let url = format!("{}/compute/post/{}/computed", self.base_url, chain_task_id);
-        let response = self
+        match self
             .client
             .post(&url)
             .header(AUTHORIZATION, authorization)
             .json(computed_file)
-            .send()?;
-
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            Err(response.error_for_status().unwrap_err())
+            .send()
+        {
+            Ok(response) => {
+                if response.status().is_success() {
+                    Ok(())
+                } else {
+                    let status = response.status();
+                    let body = response.text().unwrap_or_default();
+                    error!(
+                        "Failed to send computed file to worker: [status:{:?}, body:{:#?}]",
+                        status, body
+                    );
+                    Err(ReplicateStatusCause::PostComputeSendComputedFileFailed)
+                }
+            }
+            Err(e) => {
+                error!(
+                    "An error occured while sending computed file to worker: {}",
+                    e
+                );
+                Err(ReplicateStatusCause::PostComputeSendComputedFileFailed)
+            }
         }
     }
 }
@@ -219,12 +249,18 @@ impl WorkerApiClient {
 mod tests {
     use super::*;
     use crate::compute::utils::env_utils::TeeSessionEnvironmentVariable::*;
+    use logtest::Logger;
+    use once_cell::sync::Lazy;
     use serde_json::{json, to_string};
+    use serial_test::serial;
+    use std::sync::Mutex;
     use temp_env::with_vars;
     use wiremock::{
         Mock, MockServer, ResponseTemplate,
         matchers::{body_json, header, method, path},
     };
+
+    static TEST_LOGGER: Lazy<Mutex<Logger>> = Lazy::new(|| Mutex::new(Logger::start()));
 
     const CHALLENGE: &str = "challenge";
     const CHAIN_TASK_ID: &str = "0x123456789abcdef";
@@ -313,7 +349,12 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn should_not_send_exit_cause() {
+        {
+            let mut logger = TEST_LOGGER.lock().unwrap();
+            while logger.pop().is_some() {}
+        }
         let mock_server = MockServer::start().await;
         let server_url = mock_server.uri();
 
@@ -340,8 +381,22 @@ mod tests {
         assert!(result.is_err());
 
         if let Err(error) = result {
-            assert_eq!(error.status().unwrap(), 404);
+            assert_eq!(
+                error,
+                ReplicateStatusCause::PostComputeFailedUnknownIssue,
+                "Expected PostComputeFailedUnknownIssue, got: {:?}",
+                error
+            );
         }
+        let mut logger = TEST_LOGGER.lock().unwrap();
+        let mut found = false;
+        while let Some(rec) = logger.pop() {
+            if rec.args().contains("status:404") {
+                found = true;
+                break;
+            }
+        }
+        assert!(found, "Expected log to contain HTTP 404 status");
     }
     // endregion
 
@@ -381,7 +436,12 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn should_fail_send_computed_file_on_server_error() {
+        {
+            let mut logger = TEST_LOGGER.lock().unwrap();
+            while logger.pop().is_some() {}
+        }
         let mock_server = MockServer::start().await;
         let server_uri = mock_server.uri();
 
@@ -412,12 +472,31 @@ mod tests {
 
         assert!(result.is_err());
         if let Err(error) = result {
-            assert_eq!(error.status().unwrap(), 500);
+            assert_eq!(
+                error,
+                ReplicateStatusCause::PostComputeSendComputedFileFailed,
+                "Expected PostComputeSendComputedFileFailed, got: {:?}",
+                error
+            );
         }
+        let mut logger = TEST_LOGGER.lock().unwrap();
+        let mut found = false;
+        while let Some(rec) = logger.pop() {
+            if rec.args().contains("status:500") {
+                found = true;
+                break;
+            }
+        }
+        assert!(found, "Expected log to contain HTTP 500 status");
     }
 
     #[tokio::test]
+    #[serial]
     async fn should_handle_invalid_chain_task_id_in_url() {
+        {
+            let mut logger = TEST_LOGGER.lock().unwrap();
+            while logger.pop().is_some() {}
+        }
         let mock_server = MockServer::start().await;
         let server_uri = mock_server.uri();
 
@@ -436,8 +515,22 @@ mod tests {
 
         assert!(result.is_err(), "Should fail with invalid chain task ID");
         if let Err(error) = result {
-            assert_eq!(error.status().unwrap(), 404);
+            assert_eq!(
+                error,
+                ReplicateStatusCause::PostComputeSendComputedFileFailed,
+                "Expected PostComputeSendComputedFileFailed, got: {:?}",
+                error
+            );
         }
+        let mut logger = TEST_LOGGER.lock().unwrap();
+        let mut found = false;
+        while let Some(rec) = logger.pop() {
+            if rec.args().contains("status:404") {
+                found = true;
+                break;
+            }
+        }
+        assert!(found, "Expected log to contain HTTP 404 status");
     }
 
     #[tokio::test]
