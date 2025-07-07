@@ -24,7 +24,7 @@ pub trait PostComputeRunnerInterface {
         authorization: &str,
         chain_task_id: &str,
         exit_message: &ExitMessage,
-    ) -> Result<(), reqwest::Error>;
+    ) -> Result<(), ReplicateStatusCause>;
     fn send_computed_file(&self, computed_file: &ComputedFile) -> Result<(), ReplicateStatusCause>;
 }
 
@@ -91,7 +91,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
         authorization: &str,
         chain_task_id: &str,
         exit_message: &ExitMessage,
-    ) -> Result<(), reqwest::Error> {
+    ) -> Result<(), ReplicateStatusCause> {
         self.worker_api_client
             .send_exit_cause_for_post_compute_stage(authorization, chain_task_id, exit_message)
     }
@@ -313,11 +313,11 @@ mod tests {
             _authorization: &str,
             _chain_task_id: &str,
             _exit_message: &ExitMessage,
-        ) -> Result<(), reqwest::Error> {
+        ) -> Result<(), ReplicateStatusCause> {
             if self.send_exit_cause_success {
                 Ok(())
             } else {
-                Err(reqwest::blocking::get("invalid_url").unwrap_err())
+                Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
             }
         }
 
