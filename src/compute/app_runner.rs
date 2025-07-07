@@ -8,6 +8,7 @@ use crate::compute::{
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
     web2_result::{Web2ResultInterface, Web2ResultService},
 };
+use anyhow::Result;
 use log::{error, info};
 use std::error::Error;
 
@@ -24,7 +25,7 @@ pub trait PostComputeRunnerInterface {
         authorization: &str,
         chain_task_id: &str,
         exit_message: &ExitMessage,
-    ) -> Result<(), reqwest::Error>;
+    ) -> Result<()>;
     fn send_computed_file(&self, computed_file: &ComputedFile) -> Result<(), ReplicateStatusCause>;
 }
 
@@ -91,7 +92,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
         authorization: &str,
         chain_task_id: &str,
         exit_message: &ExitMessage,
-    ) -> Result<(), reqwest::Error> {
+    ) -> Result<()> {
         self.worker_api_client
             .send_exit_cause_for_post_compute_stage(authorization, chain_task_id, exit_message)
     }
@@ -247,6 +248,7 @@ mod tests {
         computed_file::ComputedFile, errors::ReplicateStatusCause,
         utils::env_utils::TeeSessionEnvironmentVariable,
     };
+    use anyhow::anyhow;
     use temp_env::with_vars;
     use wiremock::{
         Mock, MockServer, ResponseTemplate,
@@ -313,11 +315,11 @@ mod tests {
             _authorization: &str,
             _chain_task_id: &str,
             _exit_message: &ExitMessage,
-        ) -> Result<(), reqwest::Error> {
+        ) -> Result<()> {
             if self.send_exit_cause_success {
                 Ok(())
             } else {
-                Err(reqwest::blocking::get("invalid_url").unwrap_err())
+                Err(anyhow!(reqwest::blocking::get("invalid_url").unwrap_err()))
             }
         }
 

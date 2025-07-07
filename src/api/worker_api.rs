@@ -3,7 +3,9 @@ use crate::compute::{
     errors::ReplicateStatusCause,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
 };
-use reqwest::{Error, blocking::Client, header::AUTHORIZATION};
+use anyhow::Result;
+use log::error;
+use reqwest::{blocking::Client, header::AUTHORIZATION};
 use serde::Serialize;
 
 /// Represents payload that can be sent to the worker API to report the outcome of the
@@ -137,19 +139,32 @@ impl WorkerApiClient {
         authorization: &str,
         chain_task_id: &str,
         exit_cause: &ExitMessage,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let url = format!("{}/compute/post/{}/exit", self.base_url, chain_task_id);
-        let response = self
+        match self
             .client
             .post(&url)
             .header(AUTHORIZATION, authorization)
             .json(exit_cause)
-            .send()?;
-
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            Err(response.error_for_status().unwrap_err())
+            .send()
+        {
+            Ok(response) => {
+                if response.status().is_success() {
+                    Ok(())
+                } else {
+                    let status = response.status();
+                    let body = response.text().unwrap_or_default();
+                    error!(
+                        "Failed to send exit cause to worker: [status:{:?}, body:{:#?}]",
+                        status, body
+                    );
+                    Err(anyhow::anyhow!("HTTP {}: {}", status, body))
+                }
+            }
+            Err(e) => {
+                error!("An error occured while sending exit cause to worker: {}", e);
+                Err(e.into())
+            }
         }
     }
 
@@ -198,19 +213,35 @@ impl WorkerApiClient {
         authorization: &str,
         chain_task_id: &str,
         computed_file: &ComputedFile,
-    ) -> Result<(), Error> {
+    ) -> Result<(), anyhow::Error> {
         let url = format!("{}/compute/post/{}/computed", self.base_url, chain_task_id);
-        let response = self
+        match self
             .client
             .post(&url)
             .header(AUTHORIZATION, authorization)
             .json(computed_file)
-            .send()?;
-
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            Err(response.error_for_status().unwrap_err())
+            .send()
+        {
+            Ok(response) => {
+                if response.status().is_success() {
+                    Ok(())
+                } else {
+                    let status = response.status();
+                    let body = response.text().unwrap_or_default();
+                    error!(
+                        "Failed to send computed file to worker: [status:{:?}, body:{:#?}]",
+                        status, body
+                    );
+                    Err(anyhow::anyhow!("HTTP {}: {}", status, body))
+                }
+            }
+            Err(e) => {
+                error!(
+                    "An error occured while sending computed file to worker: {}",
+                    e
+                );
+                Err(e.into())
+            }
         }
     }
 }
@@ -340,7 +371,13 @@ mod tests {
         assert!(result.is_err());
 
         if let Err(error) = result {
-            assert_eq!(error.status().unwrap(), 404);
+            let error_str = error.to_string();
+            let expected = "HTTP 404 Not Found: ";
+            assert_eq!(
+                error_str, expected,
+                "Expected error string to be '{}', got: '{}'",
+                expected, error_str
+            );
         }
     }
     // endregion
@@ -412,7 +449,13 @@ mod tests {
 
         assert!(result.is_err());
         if let Err(error) = result {
-            assert_eq!(error.status().unwrap(), 500);
+            let error_str = error.to_string();
+            let expected = "HTTP 500 Internal Server Error: ";
+            assert_eq!(
+                error_str, expected,
+                "Expected error string to be '{}', got: '{}'",
+                expected, error_str
+            );
         }
     }
 
@@ -436,7 +479,13 @@ mod tests {
 
         assert!(result.is_err(), "Should fail with invalid chain task ID");
         if let Err(error) = result {
-            assert_eq!(error.status().unwrap(), 404);
+            let error_str = error.to_string();
+            let expected = "HTTP 404 Not Found: ";
+            assert_eq!(
+                error_str, expected,
+                "Expected error string to be '{}', got: '{}'",
+                expected, error_str
+            );
         }
     }
 
