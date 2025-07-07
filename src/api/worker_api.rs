@@ -402,7 +402,6 @@ mod tests {
 
     // region send_computed_file_to_host()
     #[tokio::test]
-    #[serial]
     async fn should_send_computed_file_successfully() {
         let mock_server = MockServer::start().await;
         let server_uri = mock_server.uri();
