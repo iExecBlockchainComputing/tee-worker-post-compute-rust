@@ -1,6 +1,10 @@
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 
+use reqwest::blocking::multipart;
+use std::fs::File;           
+use std::io::Write;       
+
 const EMPTY_HEX_STRING_32: &str =
     "0x0000000000000000000000000000000000000000000000000000000000000000";
 const EMPTY_WEB3_SIG: &str = "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
@@ -43,6 +47,37 @@ impl Default for ResultModel {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamingResultModel {
+    /// Unique identifier of the task on the blockchain
+    pub chain_task_id: String,
+    /// Unique identifier of the deal this task belongs to
+    pub deal_id: String,
+    /// Index of the task within the deal
+    pub task_index: u32,
+    /// Compressed result data as a byte array
+    pub zip_file_path: String, // instead of the file content (Vec<u8>),
+    /// Cryptographic hash of the computation result
+    pub determinist_hash: String,
+    /// TEE (Trusted Execution Environment) signature proving integrity
+    pub enclave_signature: String,
+}
+
+impl Default for StreamingResultModel {
+    fn default() -> Self {
+        Self {
+            chain_task_id: EMPTY_HEX_STRING_32.to_string(),
+            deal_id: EMPTY_HEX_STRING_32.to_string(),
+            task_index: 0,
+            zip_file_path: String::new(),
+            determinist_hash: String::new(),
+            enclave_signature: EMPTY_WEB3_SIG.to_string(),
+        }
+    }
+}
+
+
 pub struct ResultProxyApiClient {
     base_url: String,
     client: Client,
@@ -76,73 +111,89 @@ impl ResultProxyApiClient {
         }
     }
 
-    /// Uploads a computation result to IPFS via the result proxy service.
-    ///
-    /// This method sends a POST request to the result proxy's `/v1/results` endpoint with
-    /// the provided result model. The result proxy validates the data, uploads it to IPFS,
-    /// and returns the IPFS link for permanent storage.
-    ///
-    /// The upload process involves several steps handled by the result proxy:
+    /// Uploads a computation result to IPFS via the result proxy service using a streaming multipart form.
+    /// 
+    /// This method sends a POST request to the result proxy's `/v1/results` endpoint using a
+    /// multipart/form-data request body. It streams the compressed result file along with the
+    /// associated metadata. The result proxy processes the data, uploads the file to IPFS,
+    /// and returns the resulting IPFS link for permanent decentralized storage.
+    /// 
+    /// The upload process involves the following steps handled by the result proxy:
     /// 1. Authentication and authorization validation
-    /// 2. Result data validation (signatures, hashes, etc.)
-    /// 3. IPFS upload and pinning
-    /// 4. Registration of the result link on the blockchain
+    /// 2. Multipart form parsing and metadata validation (signatures, hashes, etc.)
+    /// 3. IPFS file upload and pinning of the compressed result
+    /// 4. Blockchain registration of the resulting IPFS link
     ///
     /// # Arguments
     ///
     /// * `authorization` - The bearer token for authenticating with the result proxy
-    /// * `result_model` - The [`ResultModel`] containing the computation result to upload
+    /// * `streaming_result_model` - The [`StreamingResultModel`] containing metadata for the result
+    /// * `file` - The compressed result file to upload (e.g., a `.zip` file)
     ///
     /// # Returns
     ///
-    /// * `Ok(String)` - The IPFS link where the result was uploaded (e.g., "ipfs://QmHash...")
-    /// * `Err(reqwest::Error)` - HTTP client error or server-side error
+    /// * `Ok(String)` - The IPFS link where the result file was uploaded (e.g., `"ipfs://QmHash..."`)
+    /// * `Err(reqwest::Error)` - HTTP client error or server-side failure
     ///
     /// # Errors
     ///
-    /// This function will return an error in the following situations:
+    /// This function may return an error in the following situations:
     /// * Network connectivity issues preventing the HTTP request
-    /// * Authentication failures (invalid or expired token)
-    /// * Server-side validation failures (invalid signatures, malformed data)
-    /// * IPFS upload failures on the result proxy side
-    /// * HTTP status codes indicating server errors (4xx, 5xx)
+    /// * Authentication failures (e.g., missing or invalid bearer token)
+    /// * File streaming issues (e.g., unreadable file descriptor)
+    /// * Server-side validation failures (e.g., mismatched signature or hash)
+    /// * IPFS upload or blockchain registration errors
+    /// * HTTP error responses (status codes 4xx or 5xx)
     ///
     /// # Example
     ///
     /// ```rust
-    /// use crate::api::result_proxy_api_client::{ResultProxyApiClient, ResultModel};
+    /// use crate::api::result_proxy_api_client::{ResultProxyApiClient, StreamingResultModel};
+    /// use std::fs::File;
     ///
     /// let client = ResultProxyApiClient::new("https://result-proxy.iex.ec");
-    /// let result_model = ResultModel {
-    ///     chain_task_id: "0x123...".to_string(),
-    ///     zip: compressed_data,
-    ///     determinist_hash: computed_hash,
-    ///     enclave_signature: tee_signature,
-    ///     ..Default::default()
+    ///
+    /// let model = StreamingResultModel {
+    ///     chain_task_id: "0xabc123...".into(),
+    ///     deal_id: "0xdeal456...".into(),
+    ///     task_index: 0,
+    ///     zip_file_path: "result.zip".into(),
+    ///     determinist_hash: "deadbeef...".into(),
+    ///     enclave_signature: "sgn123...".into(),
     /// };
     ///
-    /// match client.upload_to_ipfs("Bearer token123", &result_model) {
-    ///     Ok(ipfs_link) => {
-    ///         println!("Successfully uploaded to: {}", ipfs_link);
-    ///         // IPFS link can be used to retrieve the result later
-    ///     }
-    ///     Err(e) => {
-    ///         eprintln!("Upload failed: {}", e);
-    ///         // Handle error appropriately (retry, report, etc.)
-    ///     }
+    /// let file = File::open("result.zip")?;
+    ///
+    /// match client.upload_to_ipfs_streaming("Bearer token123", &model, file) {
+    ///     Ok(ipfs_link) => println!("Uploaded to IPFS: {}", ipfs_link),
+    ///     Err(e) => eprintln!("Upload failed: {}", e),
     /// }
     /// ```
-    pub fn upload_to_ipfs(
+    pub fn upload_to_ipfs_streaming(
         &self,
         authorization: &str,
-        result_model: &ResultModel,
+        streaming_result_model: &StreamingResultModel,
+        file: File,
     ) -> Result<String, reqwest::Error> {
         let url = format!("{}/v1/results", self.base_url);
+
+        let zip_part = multipart::Part::reader(file)
+            .file_name(streaming_result_model.zip_file_path.clone())
+            .mime_str("application/zip")?;
+
+        let form = multipart::Form::new()
+            .text("chainTaskId", streaming_result_model.chain_task_id.clone())
+            .text("dealId", streaming_result_model.deal_id.clone())
+            .text("taskIndex", streaming_result_model.task_index.to_string())
+            .text("deterministHash", streaming_result_model.determinist_hash.clone())
+            .text("enclaveSignature", streaming_result_model.enclave_signature.clone())
+            .part("zip", zip_part);
+
         let response = self
             .client
             .post(&url)
             .header("Authorization", authorization)
-            .json(result_model)
+            .multipart(form)
             .send()?;
 
         if response.status().is_success() {
@@ -236,31 +287,75 @@ mod tests {
         assert_eq!(client.base_url, base_url);
     }
 
+    
     #[tokio::test]
-    async fn upload_to_ipfs_returns_ipfs_link_when_server_responds_successfully() {
-        let zip_content = b"test content";
-
-        let expected_model = ResultModel {
+    async fn upload_to_ipfs_streaming_returns_ipfs_link_when_server_responds_successfully() {
+        let zip_content = b"test streaming content";
+        
+        let expected_model = StreamingResultModel {
             chain_task_id: TEST_TASK_ID.to_string(),
+            deal_id: TEST_DEAL_ID.to_string(),
+            task_index: 1,
+            zip_file_path: "test_result.zip".to_string(),
             determinist_hash: TEST_DETERMINIST_HASH.to_string(),
             enclave_signature: TEST_ENCLAVE_SIGNATURE.to_string(),
-            zip: zip_content.to_vec(),
-            ..Default::default()
         };
 
+        // Create a temporary file for testing
+        let mut temp_file = tempfile::NamedTempFile::new().unwrap();
+        temp_file.write_all(zip_content).unwrap();
+        temp_file.flush().unwrap();
+        
         let mock_server = MockServer::start().await;
-        let json = serde_json::to_value(&expected_model).unwrap();
+        
+        // Capture the request body for validation
+        let expected_content = zip_content.to_vec();
+        
         Mock::given(method("POST"))
             .and(path("/v1/results"))
             .and(header("Authorization", TEST_TOKEN))
-            .and(body_json(json))
+            .and(move |req: &wiremock::Request| {
+                // Verify it's a multipart request
+                let is_multipart = req.headers.get("content-type")
+                    .map(|ct| ct.to_str().unwrap_or("").starts_with("multipart/form-data"))
+                    .unwrap_or(false);
+                
+                if !is_multipart {
+                    return false;
+                }
+                
+                // Parse multipart body and check file content
+                let body = std::str::from_utf8(&req.body).unwrap_or("");
+                
+                // Verify the form fields are present
+                let has_chain_task_id = body.contains(&format!("name=\"chainTaskId\"\r\n\r\n{}", TEST_TASK_ID));
+                let has_deal_id = body.contains(&format!("name=\"dealId\"\r\n\r\n{}", TEST_DEAL_ID));
+                let has_task_index = body.contains("name=\"taskIndex\"\r\n\r\n1");
+                let has_determinist_hash = body.contains(&format!("name=\"deterministHash\"\r\n\r\n{}", TEST_DETERMINIST_HASH));
+                let has_enclave_signature = body.contains(&format!("name=\"enclaveSignature\"\r\n\r\n{}", TEST_ENCLAVE_SIGNATURE));
+                
+                // Verify the file content is present
+                let file_content_str = std::str::from_utf8(&expected_content).unwrap();
+                let has_file_content = body.contains(file_content_str);
+                
+                // Verify filename
+                let has_filename = body.contains("filename=\"test_result.zip\"");
+                
+                // Verify content type
+                let has_zip_content_type = body.contains("Content-Type: application/zip");
+                
+                has_chain_task_id && has_deal_id && has_task_index && 
+                has_determinist_hash && has_enclave_signature && 
+                has_file_content && has_filename && has_zip_content_type
+            })
             .respond_with(ResponseTemplate::new(200).set_body_string(TEST_IPFS_LINK))
             .mount(&mock_server)
             .await;
 
         let result = tokio::task::spawn_blocking(move || {
             let client = ResultProxyApiClient::new(&mock_server.uri());
-            client.upload_to_ipfs(TEST_TOKEN, &expected_model)
+            let file = File::open(temp_file.path()).unwrap();
+            client.upload_to_ipfs_streaming(TEST_TOKEN, &expected_model, file)
         })
         .await
         .expect("Task panicked");
@@ -268,9 +363,9 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), TEST_IPFS_LINK);
     }
-
+    
     #[tokio::test]
-    async fn upload_to_ipfs_returns_error_for_all_error_codes() {
+    async fn upload_to_ipfs_streaming_returns_error_for_all_error_codes() {
         let test_cases = vec![
             (400, "400", "Bad Request"),
             (401, "401", "Unauthorized"),
@@ -282,6 +377,13 @@ mod tests {
         ];
 
         for (status_code, expected_error_contains, description) in test_cases {
+            let zip_content = b"test streaming content";
+            
+            // Create a temporary file for testing
+            let mut temp_file = tempfile::NamedTempFile::new().unwrap();
+            temp_file.write_all(zip_content).unwrap();
+            temp_file.flush().unwrap();
+            
             let mock_server = MockServer::start().await;
             Mock::given(method("POST"))
                 .and(path("/v1/results"))
@@ -294,8 +396,9 @@ mod tests {
 
             let result = tokio::task::spawn_blocking(move || {
                 let client = ResultProxyApiClient::new(&mock_server.uri());
-                let model = ResultModel::default();
-                client.upload_to_ipfs(TEST_TOKEN, &model)
+                let model = StreamingResultModel::default();
+                let file = File::open(temp_file.path()).unwrap();
+                client.upload_to_ipfs_streaming(TEST_TOKEN, &model, file)
             })
             .await
             .expect("Task panicked");
@@ -319,3 +422,5 @@ mod tests {
     }
     // endregion
 }
+
+    
