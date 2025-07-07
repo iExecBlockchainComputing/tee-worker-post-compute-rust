@@ -7,7 +7,6 @@ edition = "2024"
 alloy-signer = "0.15.9"
 alloy-signer-local = "0.15.9"
 env_logger = "0.11.8"
-httpmock = "0.7.0"
 log = "0.4.27"
 reqwest = { version = "0.12.15", features = ["blocking", "json", "multipart"] }
 serde = "1.0.219"

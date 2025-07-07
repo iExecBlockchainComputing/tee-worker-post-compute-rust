@@ -210,7 +210,7 @@ mod tests {
     use serde_json::json;
     use wiremock::{
         Mock, MockServer, ResponseTemplate,
-        matchers::{body_json, header, method, path},
+        matchers::{header, method, path},
     };
 
     // Test constants
