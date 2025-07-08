@@ -8,6 +8,7 @@ use crate::compute::{
 use log::{debug, error, info};
 #[cfg(test)]
 use mockall::automock;
+use std::error::Error;
 use std::{
     fs::{self, File},
     io::{self, Write},
@@ -52,10 +53,8 @@ const DROPBOX_RESULT_STORAGE_PROVIDER: &str = "dropbox";
 /// ```
 #[cfg_attr(test, automock)]
 pub trait Web2ResultInterface {
-    fn encrypt_and_upload_result(
-        &self,
-        computed_file: &ComputedFile,
-    ) -> Result<(), ReplicateStatusCause>;
+    fn encrypt_and_upload_result(&self, computed_file: &ComputedFile)
+    -> Result<(), Box<dyn Error>>;
     fn check_result_files_name(
         &self,
         task_id: &str,
@@ -222,7 +221,7 @@ impl Web2ResultInterface for Web2ResultService {
     fn encrypt_and_upload_result(
         &self,
         computed_file: &ComputedFile,
-    ) -> Result<(), ReplicateStatusCause> {
+    ) -> Result<(), Box<dyn Error>> {
         // check result file names are not too long
         self.check_result_files_name(computed_file.task_id.as_ref().unwrap(), "/iexec_out")?;
 
@@ -231,7 +230,9 @@ impl Web2ResultInterface for Web2ResultService {
             Ok(path) => path,
             Err(..) => {
                 error!("zipIexecOut stage failed");
-                return Err(ReplicateStatusCause::PostComputeOutFolderZipFailed);
+                return Err(Box::new(
+                    ReplicateStatusCause::PostComputeOutFolderZipFailed,
+                ));
             }
         };
 
