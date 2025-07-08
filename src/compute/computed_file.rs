@@ -309,38 +309,23 @@ mod tests {
         let file = ComputedFile {
             deterministic_output_path: Some("/iexec_out/result.txt".to_string()),
             callback_data: Some("0xabc".to_string()),
-            task_id: Some("0x123".to_string()),
+            task_id: Some(TEST_TASK_ID.to_string()),
             result_digest: Some("0xdef".to_string()),
             enclave_signature: Some("0xsig".to_string()),
             error_message: Some("err".to_string()),
         };
         let json = serde_json::to_string(&file).unwrap();
-        let kebab_keys = [
-            "\"deterministic-output-path\"",
-            "\"callback-data\"",
-            "\"task-id\"",
-            "\"result-digest\"",
-            "\"enclave-signature\"",
-            "\"error-message\"",
-        ];
-        assert!(
-            kebab_keys.iter().all(|k| json.contains(k)),
-            "Not all kebab-case keys found in JSON: {}",
-            json
-        );
-        let snake_keys = [
-            "deterministic_output_path",
-            "callback_data",
-            "task_id",
-            "result_digest",
-            "enclave_signature",
-            "error_message",
-        ];
-        assert!(
-            snake_keys.iter().all(|k| !json.contains(k)),
-            "Some snake_case keys found in JSON: {}",
-            json
-        );
+        let expected = r#"{
+            "deterministic-output-path":"/iexec_out/result.txt",
+            "callback-data":"0xabc",
+            "task-id":"0x123456789abcdef",
+            "result-digest":"0xdef",
+            "enclave-signature":"0xsig",
+            "error-message":"err"
+        }"#;
+        let expected_value: serde_json::Value = serde_json::from_str(expected).unwrap();
+        let actual_value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(actual_value, expected_value);
     }
 
     // region read_computed_file
