@@ -314,7 +314,6 @@ mod tests {
             enclave_signature: Some("0xsig".to_string()),
             error_message: Some("err".to_string()),
         };
-        let json = serde_json::to_string(&file).unwrap();
         let expected = r#"{
             "deterministic-output-path":"/iexec_out/result.txt",
             "callback-data":"0xabc",
@@ -324,7 +323,7 @@ mod tests {
             "error-message":"err"
         }"#;
         let expected_value: serde_json::Value = serde_json::from_str(expected).unwrap();
-        let actual_value: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let actual_value: serde_json::Value = serde_json::json!(&file);
         assert_eq!(actual_value, expected_value);
     }
 
