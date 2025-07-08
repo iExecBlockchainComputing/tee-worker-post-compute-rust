@@ -31,7 +31,7 @@ use std::{fs, path::Path};
 /// }
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all(deserialize = "kebab-case"))]
+#[serde(rename_all = "kebab-case")]
 pub struct ComputedFile {
     pub deterministic_output_path: Option<String>,
     pub callback_data: Option<String>,
@@ -303,6 +303,45 @@ mod tests {
     use tempfile::tempdir;
 
     const TEST_TASK_ID: &str = "0x123456789abcdef";
+
+    #[test]
+    fn computed_file_serializes_to_kebab_case() {
+        let file = ComputedFile {
+            deterministic_output_path: Some("/iexec_out/result.txt".to_string()),
+            callback_data: Some("0xabc".to_string()),
+            task_id: Some("0x123".to_string()),
+            result_digest: Some("0xdef".to_string()),
+            enclave_signature: Some("0xsig".to_string()),
+            error_message: Some("err".to_string()),
+        };
+        let json = serde_json::to_string(&file).unwrap();
+        let kebab_keys = [
+            "\"deterministic-output-path\"",
+            "\"callback-data\"",
+            "\"task-id\"",
+            "\"result-digest\"",
+            "\"enclave-signature\"",
+            "\"error-message\"",
+        ];
+        assert!(
+            kebab_keys.iter().all(|k| json.contains(k)),
+            "Not all kebab-case keys found in JSON: {}",
+            json
+        );
+        let snake_keys = [
+            "deterministic_output_path",
+            "callback_data",
+            "task_id",
+            "result_digest",
+            "enclave_signature",
+            "error_message",
+        ];
+        assert!(
+            snake_keys.iter().all(|k| !json.contains(k)),
+            "Some snake_case keys found in JSON: {}",
+            json
+        );
+    }
 
     // region read_computed_file
     #[test]
