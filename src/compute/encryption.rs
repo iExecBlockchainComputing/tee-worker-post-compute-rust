@@ -96,43 +96,58 @@ pub fn encrypt_data(
     produce_zip: bool,
 ) -> Result<String, Box<dyn Error>> {
     let path = Path::new(in_data_file_path);
-    let in_data_filename = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| {
+    let in_data_filename = match path.file_name().and_then(|name| name.to_str()) {
+        Some(name) => name,
+        None => {
             error!(
                 "Failed to extract filename from path: {}",
                 in_data_file_path
             );
-            ReplicateStatusCause::PostComputeEncryptionFailed
-        })?;
+            return Err(Box::new(ReplicateStatusCause::PostComputeEncryptionFailed));
+        }
+    };
     let out_encrypted_data_filename = format!("{}.aes", in_data_filename);
 
-    let work_dir = path.parent().and_then(|p| p.to_str()).ok_or_else(|| {
-        error!("Failed to get parent directory of: {}", in_data_file_path);
-        ReplicateStatusCause::PostComputeEncryptionFailed
-    })?;
+    let work_dir = match path.parent().and_then(|p| p.to_str()) {
+        Some(dir) => dir,
+        None => {
+            error!("Failed to get parent directory of: {}", in_data_file_path);
+            return Err(Box::new(ReplicateStatusCause::PostComputeEncryptionFailed));
+        }
+    };
 
-    let filename_without_ext =
-        path.file_stem()
-            .and_then(|stem| stem.to_str())
-            .ok_or_else(|| {
-                error!(
-                    "Failed to extract filename without extension from '{}'",
-                    in_data_file_path
-                );
-                ReplicateStatusCause::PostComputeEncryptionFailed
-            })?;
+    let filename_without_ext = match path.file_stem().and_then(|stem| stem.to_str()) {
+        Some(stem) => stem,
+        None => {
+            error!(
+                "Failed to extract filename without extension from '{}'",
+                in_data_file_path
+            );
+            return Err(Box::new(ReplicateStatusCause::PostComputeEncryptionFailed));
+        }
+    };
     let out_enc_dir = format!("{}/{}{}", work_dir, "encrypted-", filename_without_ext); //location of future encrypted files (./encrypted-0x1_result)
 
     // Get data to encrypt
-    let data = fs::read(in_data_file_path)?;
-    if data.is_empty() {
-        error!(
-            "Failed to encrypt_data (read_file error) [in_data_file_path:{}]",
-            in_data_file_path
-        );
-        return Ok(String::new());
+    let data = match fs::read(in_data_file_path) {
+        Ok(d) => {
+            if d.is_empty() {
+                error!(
+                    "Failed to encrypt_data (empty file error) [in_data_file_path:{}]",
+                    in_data_file_path
+                );
+                return Ok(String::new());
+            } else {
+                d
+            }
+        }
+        Err(e) => {
+            error!(
+                "Failed to encrypt_data (read_file error) [in_data_file_path:{}]: {}",
+                in_data_file_path, e
+            );
+            return Err(Box::new(e));
+        }
     };
 
     // Generate AES key for data encryption
