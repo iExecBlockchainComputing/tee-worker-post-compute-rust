@@ -1,10 +1,11 @@
 use crate::api::result_proxy_api_client::{ResultModel, ResultProxyApiClient};
 use crate::compute::{
     computed_file::ComputedFile,
-    encryption::eventually_encrypt_result,
+    encryption::encrypt_data,
     errors::ReplicateStatusCause,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
 };
+use base64::{Engine as _, engine::general_purpose};
 use log::{debug, error, info};
 #[cfg(test)]
 use mockall::automock;
@@ -65,6 +66,7 @@ pub trait Web2ResultInterface {
         iexec_out_path: &str,
         save_in: &str,
     ) -> Result<String, ReplicateStatusCause>;
+    fn eventually_encrypt_result(&self, in_data_file_path: &str) -> Result<String, Box<dyn Error>>;
     fn upload_result(
         &self,
         computed_file: &ComputedFile,
@@ -236,7 +238,7 @@ impl Web2ResultInterface for Web2ResultService {
             }
         };
 
-        let result_path = eventually_encrypt_result(&zip_path)?;
+        let result_path = self.eventually_encrypt_result(&zip_path)?;
         self.upload_result(computed_file, &result_path)?; //TODO Share result link to beneficiary
 
         // Clean up the temporary zip file
@@ -341,6 +343,80 @@ impl Web2ResultInterface for Web2ResultService {
 
         info!("Folder zipped [path:{}]", zip_path.display());
         Ok(String::from(zip_path.to_string_lossy()))
+    }
+
+    fn eventually_encrypt_result(&self, in_data_file_path: &str) -> Result<String, Box<dyn Error>> {
+        info!("Encryption stage started");
+        let should_encrypt: bool = match get_env_var_or_error(
+            TeeSessionEnvironmentVariable::ResultEncryption,
+            ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO: Update this error cause to a more specific one
+        ) {
+            Ok(value) => match value.parse::<bool>() {
+                Ok(parsed_value) => parsed_value,
+                Err(e) => {
+                    error!(
+                        "Failed to parse RESULT_ENCRYPTION environment variable as a boolean [callback_env_var:{}]",
+                        value
+                    );
+                    return Err(Box::new(e));
+                }
+            },
+            Err(e) => {
+                error!("Failed to get RESULT_ENCRYPTION environment variable");
+                return Err(Box::new(e));
+            }
+        };
+
+        if !should_encrypt {
+            info!("Encryption stage mode: NO_ENCRYPTION");
+            return Ok(in_data_file_path.to_string());
+        }
+
+        info!("Encryption stage mode: ENCRYPTION_REQUESTED");
+        let beneficiary_rsa_public_key_base64 = match get_env_var_or_error(
+            TeeSessionEnvironmentVariable::ResultEncryptionPublicKey,
+            ReplicateStatusCause::PostComputeEncryptionPublicKeyMissing,
+        ) {
+            Ok(key) => key,
+            Err(e) => return Err(Box::new(e)),
+        };
+
+        let plain_text_beneficiary_rsa_public_key =
+            match general_purpose::STANDARD.decode(beneficiary_rsa_public_key_base64) {
+                Ok(key_bytes) => match String::from_utf8(key_bytes) {
+                    Ok(key_string) => key_string,
+                    Err(e) => {
+                        error!("Decoded key is not valid UTF-8: {}", e);
+                        return Err(Box::new(
+                            ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey,
+                        ));
+                    }
+                },
+                Err(e) => {
+                    error!("Result encryption public key base64 decoding failed: {}", e);
+                    return Err(Box::new(
+                        ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey,
+                    ));
+                }
+            };
+
+        match encrypt_data(
+            in_data_file_path,
+            &plain_text_beneficiary_rsa_public_key,
+            true,
+        ) {
+            Ok(file) if file.is_empty() => {
+                Err(Box::new(ReplicateStatusCause::PostComputeEncryptionFailed))
+            }
+            Ok(file) => {
+                info!("Encryption stage completed");
+                Ok(file)
+            }
+            Err(e) => {
+                error!("Result encryption failed: {}", e);
+                Err(Box::new(ReplicateStatusCause::PostComputeEncryptionFailed))
+            }
+        }
     }
 
     /// Uploads the compressed result to the configured storage provider.
@@ -473,8 +549,8 @@ mod tests {
     use super::*;
     use mockall::predicate::{eq, function};
     use std::os::unix::fs::symlink;
-    use temp_env;
-    use tempfile::TempDir;
+    use temp_env::{self, with_vars};
+    use tempfile::{NamedTempFile, TempDir, tempdir};
     use wiremock::{
         Mock, MockServer, ResponseTemplate,
         matchers::{method, path},
@@ -494,16 +570,18 @@ mod tests {
     fn run_encrypt_and_upload_result<T: Web2ResultInterface>(
         service: &T,
         computed_file: &ComputedFile,
-    ) -> Result<(), ReplicateStatusCause> {
+    ) -> Result<(), Box<dyn Error>> {
         service.check_result_files_name(computed_file.task_id.as_ref().unwrap(), "/iexec_out")?;
         let zip_path = match service.zip_iexec_out("/iexec_out", SLASH_POST_COMPUTE_TMP) {
             Ok(path) => path,
             Err(..) => {
                 error!("zipIexecOut stage failed");
-                return Err(ReplicateStatusCause::PostComputeOutFolderZipFailed);
+                return Err(Box::new(
+                    ReplicateStatusCause::PostComputeOutFolderZipFailed,
+                ));
             }
         };
-        let result_path = zip_path;
+        let result_path = service.eventually_encrypt_result(&zip_path)?;
         service.upload_result(computed_file, &result_path)?;
         Ok(())
     }
@@ -525,6 +603,12 @@ mod tests {
             .with(eq("/iexec_out"), eq(SLASH_POST_COMPUTE_TMP))
             .times(1)
             .returning(move |_, _| Ok(String::from(zip_path)));
+
+        web2_result_mock
+            .expect_eventually_encrypt_result()
+            .with(eq(zip_path))
+            .times(1)
+            .returning(move |_| Ok(String::from("/post-compute-tmp/iexec_out.zip")));
 
         web2_result_mock
             .expect_upload_result()
@@ -551,8 +635,10 @@ mod tests {
 
         let result = run_encrypt_and_upload_result(&web2_result_mock, &computed_file);
         assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.is::<ReplicateStatusCause>());
         assert_eq!(
-            result.unwrap_err(),
+            *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
             ReplicateStatusCause::PostComputeOutFolderZipFailed
         );
     }
@@ -568,9 +654,45 @@ mod tests {
 
         let result = run_encrypt_and_upload_result(&web2_result_mock, &computed_file);
         assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.is::<ReplicateStatusCause>());
         assert_eq!(
-            result.unwrap_err(),
+            *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
             ReplicateStatusCause::PostComputeTooLongResultFileName
+        );
+    }
+
+    #[test]
+    fn encrypt_and_upload_result_returns_error_when_encryption_returns_error() {
+        let mut web2_result_mock = MockWeb2ResultInterface::new();
+        let computed_file = create_test_computed_file("0x123");
+        let zip_path = "/post-compute-tmp/iexec_out.zip";
+
+        web2_result_mock
+            .expect_check_result_files_name()
+            .with(eq("0x123"), eq("/iexec_out"))
+            .times(1)
+            .returning(|_, _| Ok(()));
+
+        web2_result_mock
+            .expect_zip_iexec_out()
+            .with(eq("/iexec_out"), eq(SLASH_POST_COMPUTE_TMP))
+            .times(1)
+            .returning(move |_, _| Ok(String::from(zip_path)));
+
+        web2_result_mock
+            .expect_eventually_encrypt_result()
+            .with(eq(zip_path))
+            .times(1)
+            .returning(|_| Err(Box::new(ReplicateStatusCause::PostComputeEncryptionFailed)));
+
+        let result = run_encrypt_and_upload_result(&web2_result_mock, &computed_file);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.is::<ReplicateStatusCause>());
+        assert_eq!(
+            *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
+            ReplicateStatusCause::PostComputeEncryptionFailed
         );
     }
 
@@ -589,13 +711,21 @@ mod tests {
             .returning(move |_, _| Ok(String::from(zip_path)));
 
         web2_result_mock
+            .expect_eventually_encrypt_result()
+            .with(eq(zip_path))
+            .times(1)
+            .returning(move |_| Ok(String::from("/post-compute-tmp/iexec_out.zip")));
+
+        web2_result_mock
             .expect_upload_result()
             .returning(|_, _| Err(ReplicateStatusCause::PostComputeIpfsUploadFailed));
 
         let result = run_encrypt_and_upload_result(&web2_result_mock, &computed_file);
         assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.is::<ReplicateStatusCause>());
         assert_eq!(
-            result.unwrap_err(),
+            *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
             ReplicateStatusCause::PostComputeIpfsUploadFailed
         );
     }
@@ -822,6 +952,336 @@ mod tests {
         expected.sort();
         assert_eq!(file_names, expected);
         assert_eq!(archive.len(), 3, "Zip should contain exactly 3 files");
+    }
+    // endregion
+
+    // region eventually_encrypt_result
+    fn create_temp_file_with_text(content: &str) -> NamedTempFile {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+        file
+    }
+
+    #[test]
+    fn eventually_encrypt_result_returns_original_path_when_encryption_disabled() {
+        let test_file = create_temp_file_with_text("test content");
+        let file_path = test_file.path().to_str().unwrap();
+
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::ResultEncryption.name(),
+                Some("false"),
+            )],
+            || {
+                let result = Web2ResultService.eventually_encrypt_result(file_path);
+                assert!(result.is_ok());
+                assert_eq!(result.unwrap(), file_path);
+            },
+        );
+    }
+
+    const TEST_RSA_PUBLIC_KEY_PEM: &str = r#"-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr0mx20CSFczJaM4rtYfL
+VHXfTybD4J85SGrI6GfPlOhAnocZOMIRJVqrYSGqfNvw6bnv3OrNp0OJ6Av7v20r
+YiciyJ/R9c7W4jLksTC0qAEr1x8IsH1rsTcgIhD+V2eQWqi05ArUg+YDQiGr/B6T
+jJRbbZIjcX6l/let03NJ8b6vMgaY+6tpt9GXhm27/tVIG6vt0NYViU0cOY3+fRH7
+M1XvGQa3D0LnJTvhAgljz3Jpl7whAWQgluVDVNq7erJVN7/d5jpTG29FWrAYujvs
+KfizbB8KpGwCHwFcHZurz9+Sp4mH5cQCvz/VhFrAvzbhsIl6Qf8XURHmqxYc/DRt
+FQIDAQAB
+-----END PUBLIC KEY-----"#;
+
+    fn get_base64_encoded_valid_rsa_key() -> String {
+        general_purpose::STANDARD.encode(TEST_RSA_PUBLIC_KEY_PEM)
+    }
+
+    #[test]
+    fn eventually_encrypt_result_returns_encrypted_path_when_encryption_enabled_and_key_valid() {
+        let base_temp = tempdir().expect("Failed to create base_temp");
+        let input_dir = base_temp.path().join("input_valid_encrypt");
+        fs::create_dir_all(&input_dir).unwrap();
+        let input_file_path = input_dir.join("data_to_encrypt.txt");
+        fs::write(&input_file_path, "secret stuff").expect("Failed to write data_to_encrypt.txt");
+
+        with_vars(
+            vec![
+                (
+                    TeeSessionEnvironmentVariable::ResultEncryption.name(),
+                    Some("true"),
+                ),
+                (
+                    TeeSessionEnvironmentVariable::ResultEncryptionPublicKey.name(),
+                    Some(get_base64_encoded_valid_rsa_key().as_str()),
+                ),
+            ],
+            || {
+                let result =
+                    Web2ResultService.eventually_encrypt_result(input_file_path.to_str().unwrap());
+                assert!(
+                    result.is_ok(),
+                    "eventually_encrypt_result failed: {:?}",
+                    result.err()
+                );
+                let output_zip_path_str = result.unwrap();
+                let output_zip_path = Path::new(&output_zip_path_str);
+                assert!(
+                    output_zip_path.exists(),
+                    "Encrypted zip file should exist at {}",
+                    output_zip_path_str
+                );
+                assert_eq!(output_zip_path.extension().unwrap_or_default(), "zip");
+                assert_eq!(
+                    output_zip_path.file_name().unwrap().to_str().unwrap(),
+                    "iexec_out.zip"
+                );
+                assert_eq!(output_zip_path.parent().unwrap(), input_dir);
+                let zip_file_reader =
+                    File::open(output_zip_path).expect("Failed to open output zip file for check");
+                let mut archive = ZipArchive::new(zip_file_reader)
+                    .expect("Failed to read output zip archive for check");
+                assert!(
+                    archive.len() == 2,
+                    "Encrypted zip archive should contain 2 files. Found: {}",
+                    archive.len()
+                );
+                let expected_encrypted_data_filename = format!(
+                    "{}.aes",
+                    input_file_path.file_name().unwrap().to_str().unwrap()
+                );
+                assert!(archive.by_name(&expected_encrypted_data_filename).is_ok());
+                assert!(archive.by_name("aes-key.rsa").is_ok());
+            },
+        );
+    }
+
+    #[test]
+    fn eventually_encrypt_result_returns_error_when_encryption_env_var_missing() {
+        let test_file = create_temp_file_with_text("test content");
+        let file_path = test_file.path().to_str().unwrap();
+
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::ResultEncryption.name(),
+                None::<&str>,
+            )],
+            || {
+                let result = Web2ResultService.eventually_encrypt_result(file_path);
+                assert!(result.is_err());
+                let err = result.unwrap_err();
+                assert!(err.is::<ReplicateStatusCause>());
+                assert_eq!(
+                    *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
+                    ReplicateStatusCause::PostComputeFailedUnknownIssue
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn eventually_encrypt_result_returns_error_when_encryption_env_var_invalid() {
+        let test_file = create_temp_file_with_text("test content");
+        let file_path = test_file.path().to_str().unwrap();
+
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::ResultEncryption.name(),
+                Some("invalid_boolean"),
+            )],
+            || {
+                let result = Web2ResultService.eventually_encrypt_result(file_path);
+                assert!(result.is_err());
+                let err = result.unwrap_err();
+                assert!(err.is::<std::str::ParseBoolError>());
+            },
+        );
+    }
+
+    #[test]
+    fn eventually_encrypt_result_returns_error_when_public_key_missing() {
+        let test_file = create_temp_file_with_text("test content");
+        let file_path = test_file.path().to_str().unwrap();
+
+        with_vars(
+            vec![
+                (
+                    TeeSessionEnvironmentVariable::ResultEncryption.name(),
+                    Some("true"),
+                ),
+                (
+                    TeeSessionEnvironmentVariable::ResultEncryptionPublicKey.name(),
+                    None::<&str>,
+                ),
+            ],
+            || {
+                let result = Web2ResultService.eventually_encrypt_result(file_path);
+                assert!(result.is_err());
+                let err = result.unwrap_err();
+                assert!(err.is::<ReplicateStatusCause>());
+                assert_eq!(
+                    *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
+                    ReplicateStatusCause::PostComputeEncryptionPublicKeyMissing
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn eventually_encrypt_result_returns_error_when_public_key_invalid_base64() {
+        let test_file = create_temp_file_with_text("test content");
+        let file_path = test_file.path().to_str().unwrap();
+
+        with_vars(
+            vec![
+                (
+                    TeeSessionEnvironmentVariable::ResultEncryption.name(),
+                    Some("true"),
+                ),
+                (
+                    TeeSessionEnvironmentVariable::ResultEncryptionPublicKey.name(),
+                    Some("invalid_base64!@#"),
+                ),
+            ],
+            || {
+                let result = Web2ResultService.eventually_encrypt_result(file_path);
+                assert!(result.is_err());
+                let err = result.unwrap_err();
+                assert!(err.is::<ReplicateStatusCause>());
+                assert_eq!(
+                    *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
+                    ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn eventually_encrypt_result_returns_error_when_public_key_invalid_utf8() {
+        let test_file = create_temp_file_with_text("test content");
+        let file_path = test_file.path().to_str().unwrap();
+        let invalid_utf8_base64 =
+            base64::engine::general_purpose::STANDARD.encode([0xFF, 0xFE, 0xFD]);
+
+        with_vars(
+            vec![
+                (
+                    TeeSessionEnvironmentVariable::ResultEncryption.name(),
+                    Some("true"),
+                ),
+                (
+                    TeeSessionEnvironmentVariable::ResultEncryptionPublicKey.name(),
+                    Some(&invalid_utf8_base64),
+                ),
+            ],
+            || {
+                let result = Web2ResultService.eventually_encrypt_result(file_path);
+                assert!(result.is_err());
+                let err = result.unwrap_err();
+                assert!(err.is::<ReplicateStatusCause>());
+                assert_eq!(
+                    *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
+                    ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn eventually_encrypt_result_returns_error_when_public_key_not_a_valid_key() {
+        let test_file = create_temp_file_with_text("test content");
+        let file_path = test_file.path().to_str().unwrap();
+        let not_a_key_base64 =
+            general_purpose::STANDARD.encode("Hello World, this is valid base64 but not a key.");
+
+        with_vars(
+            vec![
+                (
+                    TeeSessionEnvironmentVariable::ResultEncryption.name(),
+                    Some("true"),
+                ),
+                (
+                    TeeSessionEnvironmentVariable::ResultEncryptionPublicKey.name(),
+                    Some(not_a_key_base64.as_str()),
+                ),
+            ],
+            || {
+                let result = Web2ResultService.eventually_encrypt_result(file_path);
+                assert!(result.is_err());
+                let err = result.unwrap_err();
+                assert!(err.is::<ReplicateStatusCause>());
+                assert_eq!(
+                    *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
+                    ReplicateStatusCause::PostComputeEncryptionFailed
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn eventually_encrypt_result_returns_error_when_input_file_is_empty() {
+        let test_file = create_temp_file_with_text("");
+        let file_path = test_file.path().to_str().unwrap();
+
+        with_vars(
+            vec![
+                (
+                    TeeSessionEnvironmentVariable::ResultEncryption.name(),
+                    Some("true"),
+                ),
+                (
+                    TeeSessionEnvironmentVariable::ResultEncryptionPublicKey.name(),
+                    Some(get_base64_encoded_valid_rsa_key().as_str()),
+                ),
+            ],
+            || {
+                let result = Web2ResultService.eventually_encrypt_result(file_path);
+                assert!(result.is_err());
+                let err = result.unwrap_err();
+                assert!(err.is::<ReplicateStatusCause>());
+                assert_eq!(
+                    *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
+                    ReplicateStatusCause::PostComputeEncryptionFailed
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn eventually_encrypt_result_returns_encrypted_path_when_input_file_is_binary() {
+        let base_temp = tempdir().expect("Failed to create base_temp");
+        let input_dir = base_temp.path().join("input_binary_encrypt");
+        fs::create_dir_all(&input_dir).unwrap();
+        let input_file_path = input_dir.join("data_to_encrypt.bin");
+        let binary_content = vec![0, 159, 146, 150, 255, 0, 100, 200, 50, 10, 0, 255];
+        fs::write(&input_file_path, &binary_content).expect("Failed to write binary data");
+
+        with_vars(
+            vec![
+                (
+                    TeeSessionEnvironmentVariable::ResultEncryption.name(),
+                    Some("true"),
+                ),
+                (
+                    TeeSessionEnvironmentVariable::ResultEncryptionPublicKey.name(),
+                    Some(get_base64_encoded_valid_rsa_key().as_str()),
+                ),
+            ],
+            || {
+                let result =
+                    Web2ResultService.eventually_encrypt_result(input_file_path.to_str().unwrap());
+                assert!(
+                    result.is_ok(),
+                    "eventually_encrypt_result failed: {:?}",
+                    result.err()
+                );
+                let output_zip_path_str = result.unwrap();
+                let output_zip_path = Path::new(&output_zip_path_str);
+                assert!(
+                    output_zip_path.exists(),
+                    "Encrypted zip file should exist at {}",
+                    output_zip_path_str
+                );
+                assert_eq!(output_zip_path.extension().unwrap_or_default(), "zip");
+            },
+        );
     }
     // endregion
 
