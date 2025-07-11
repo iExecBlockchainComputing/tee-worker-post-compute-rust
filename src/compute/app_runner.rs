@@ -72,9 +72,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
         sign_computed_file(&mut computed_file).map_err(Box::new)?;
 
         if !should_callback {
-            Web2ResultService
-                .encrypt_and_upload_result(&computed_file)
-                .map_err(Box::new)?;
+            Web2ResultService.encrypt_and_upload_result(&computed_file)?;
         }
 
         self.send_computed_file(&computed_file).map_err(Box::new)?;

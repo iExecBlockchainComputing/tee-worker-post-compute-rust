@@ -9,6 +9,10 @@ pub enum ReplicateStatusCause {
     PostComputeComputedFileNotFound,
     #[error("Failed to upload to Dropbox")]
     PostComputeDropboxUploadFailed,
+    #[error("Encryption stage failed")]
+    PostComputeEncryptionFailed,
+    #[error("Encryption public key related environment variable is missing")]
+    PostComputeEncryptionPublicKeyMissing,
     #[error("Unexpected error occurred")]
     PostComputeFailedUnknownIssue,
     #[error("Invalid enclave challenge private key")]
@@ -17,6 +21,8 @@ pub enum ReplicateStatusCause {
     PostComputeInvalidTeeSignature,
     #[error("Failed to upload to IPFS")]
     PostComputeIpfsUploadFailed,
+    #[error("Encryption public key is malformed")]
+    PostComputeMalformedEncryptionPublicKey,
     #[error("Failed to zip result folder")]
     PostComputeOutFolderZipFailed,
     #[error("Empty resultDigest")]
