@@ -345,6 +345,44 @@ impl Web2ResultInterface for Web2ResultService {
         Ok(String::from(zip_path.to_string_lossy()))
     }
 
+    /// Conditionally encrypts a result file based on environment configuration.
+    ///
+    /// This function checks the `RESULT_ENCRYPTION` environment variable to determine whether
+    /// result encryption is required. If encryption is disabled, it returns the original file path.
+    /// If encryption is enabled, it retrieves the beneficiary's RSA public key from the
+    /// `RESULT_ENCRYPTION_PUBLIC_KEY` environment variable (Base64-encoded PEM), decodes it,
+    /// and encrypts the input file using hybrid encryption (AES-256-CBC + RSA-2048).
+    /// The encrypted output is a ZIP archive containing the encrypted data and key.
+    ///
+    /// # Arguments
+    ///
+    /// * `in_data_file_path` - Path to the file to be (optionally) encrypted. Must be a valid file.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(String)` - Path to the encrypted ZIP file if encryption is enabled, or the original file path if not.
+    /// * `Err(Box<dyn Error>)` - If environment variables are missing, invalid, or encryption fails.
+    ///
+    /// # Errors
+    ///
+    /// * Returns an error if:
+    ///   - The `RESULT_ENCRYPTION` environment variable is missing or invalid
+    ///   - The `RESULT_ENCRYPTION_PUBLIC_KEY` is missing, invalid, or not valid Base64/PEM
+    ///   - The encryption operation fails (see [`encrypt_data`])
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use crate::compute::web2_result::Web2ResultService;
+    /// use std::env;
+    ///
+    /// // Set environment variables for encryption
+    /// env::set_var("RESULT_ENCRYPTION", "true");
+    /// env::set_var("RESULT_ENCRYPTION_PUBLIC_KEY", base64::encode("-----BEGIN PUBLIC KEY-----..."));
+    ///
+    /// let encrypted_path = Web2ResultService.eventually_encrypt_result("/path/to/result.zip").unwrap();
+    /// println!("Encrypted file at: {}", encrypted_path);
+    /// ```
     fn eventually_encrypt_result(&self, in_data_file_path: &str) -> Result<String, Box<dyn Error>> {
         info!("Encryption stage started");
         let should_encrypt: bool = match get_env_var_or_error(

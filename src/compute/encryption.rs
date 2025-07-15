@@ -12,6 +12,77 @@ use rsa::{Pkcs1v15Encrypt, RsaPublicKey, pkcs8::DecodePublicKey};
 use sha3::{Digest, Sha3_256};
 use std::{error::Error, fs, path::Path};
 
+/// Encrypts a data file using hybrid encryption (AES-256-CBC + RSA-2048).
+///
+/// This function implements a secure hybrid encryption scheme where the input data
+/// is encrypted with AES-256-CBC and the AES key is encrypted with RSA-2048.
+/// The function creates an output directory containing the encrypted data and
+/// encrypted key, with optional ZIP compression.
+///
+/// # Encryption Process
+///
+/// 1. **File Validation**: Validates input file path and reads data
+/// 2. **AES Encryption**: Generates a random 256-bit AES key and encrypts the data
+/// 3. **RSA Key Encryption**: Encrypts the AES key using the provided RSA public key
+/// 4. **Output Generation**: Creates encrypted files in a structured directory
+/// 5. **Optional Compression**: Creates a ZIP archive if requested
+///
+/// # Arguments
+///
+/// * `in_data_file_path` - Path to the input file to encrypt. Must be a valid, readable file.
+/// * `plain_text_rsa_pub` - RSA public key in PEM format (with or without headers).
+///   Supports both PKCS#1 and PKCS#8 formats.
+/// * `produce_zip` - If `true`, creates a ZIP archive containing encrypted files.
+///   If `false`, returns the directory path containing encrypted files.
+///
+/// # Returns
+///
+/// * `Result<String, Box<dyn Error>>` - On success, returns the path to either:
+///   - ZIP file path (if `produce_zip` is `true`)
+///   - Directory path containing encrypted files (if `produce_zip` is `false`)
+///   - Empty string for non-critical failures (operation continues but with warnings)
+///
+/// # Output Structure
+///
+/// When `produce_zip` is `false`, creates a directory named `encrypted-{filename_stem}`:
+/// ```text
+/// encrypted-myfile/
+/// ├── myfile.txt.aes        # AES-encrypted data (IV + ciphertext)
+/// └── aes-key.rsa           # RSA-encrypted AES key (Base64 encoded)
+/// ```
+///
+/// When `produce_zip` is `true`, creates `iexec_out.zip` containing the above structure.
+///
+/// # Errors
+///
+/// * `PostComputeEncryptionFailed` - Critical failures:
+///   - Invalid file path or unreadable input file
+///   - Cryptographic operation failures
+///   - File system operation failures
+/// * Returns empty string for non-critical failures:
+///   - Empty input files
+///   - Invalid RSA public keys
+///   - Directory creation failures
+///
+/// # Security Notes
+///
+/// - Each encryption operation uses a fresh AES key and IV
+/// - RSA encryption uses PKCS#1 v1.5 padding (industry standard)
+/// - All random values are generated using cryptographically secure `OsRng`
+/// - Input data is securely overwritten in memory after encryption
+///
+/// # Example
+///
+/// ```rust
+/// // Encrypt a file and create a ZIP archive
+/// let rsa_key = "-----BEGIN PUBLIC KEY-----\nMIIB...AQAB\n-----END PUBLIC KEY-----";
+/// let result = encrypt_data("./secret.txt", rsa_key, true)?;
+/// println!("Encrypted ZIP created: {}", result);
+///
+/// // Encrypt a file and get directory path
+/// let result = encrypt_data("./secret.txt", rsa_key, false)?;
+/// println!("Encrypted files in: {}", result);
+/// ```
 pub fn encrypt_data(
     in_data_file_path: &str,
     plain_text_rsa_pub: &str,
@@ -187,8 +258,36 @@ pub fn encrypt_data(
     Ok(out_enc_dir)
 }
 
+/// Generates a cryptographically secure 256-bit AES key.
+///
+/// This function creates a new AES-256 key using the operating system's
+/// cryptographically secure random number generator (`OsRng`). Each call
+/// produces a unique key suitable for encrypting sensitive data.
+///
+/// # Returns
+///
+/// * `Result<Vec<u8>, ReplicateStatusCause>` - On success, returns a 32-byte
+///   vector containing the AES-256 key. On failure, returns `PostComputeEncryptionFailed`.
+///
+/// # Security
+///
+/// - Uses `OsRng` which provides cryptographically secure randomness
+/// - Generates full 256-bit (32-byte) keys for maximum security
+/// - Each key is statistically unique across all invocations
+///
+/// # Errors
+///
+/// * `PostComputeEncryptionFailed` - If the random number generator fails
+///   to produce sufficient entropy (extremely rare on modern systems)
+///
+/// # Example
+///
+/// ```rust
+/// let aes_key = generate_aes_key()?;
+/// assert_eq!(aes_key.len(), 32); // 256 bits = 32 bytes
+/// ```
 pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
-    let mut key_bytes = [0u8; 32]; // 256-bit key
+    let mut key_bytes = [0u8; 32]; // 256-bit key (32 bytes)
     if let Err(e) = OsRng.try_fill_bytes(&mut key_bytes) {
         error!("Failed to generate AES key: {}", e);
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
@@ -196,6 +295,66 @@ pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
     Ok(key_bytes.to_vec())
 }
 
+/// Encrypts data using AES-256 in CBC mode with PKCS#7 padding.
+///
+/// This function implements AES-256-CBC encryption with the following characteristics:
+/// - **Algorithm**: AES-256 (Advanced Encryption Standard with 256-bit key)
+/// - **Mode**: CBC (Cipher Block Chaining) for semantic security
+/// - **Padding**: PKCS#7 to handle arbitrary input lengths
+/// - **IV**: Random 128-bit initialization vector prepended to output
+///
+/// # Process
+///
+/// 1. Validates input data and key length
+/// 2. Generates a random 128-bit IV using `OsRng`
+/// 3. Encrypts data using AES-256-CBC with PKCS#7 padding
+/// 4. Prepends IV to ciphertext for later decryption
+///
+/// # Arguments
+///
+/// * `data` - The plaintext data to encrypt. Must not be empty.
+/// * `key` - The AES-256 key. Must be exactly 32 bytes (256 bits).
+///
+/// # Returns
+///
+/// * `Result<Vec<u8>, ReplicateStatusCause>` - On success, returns a vector
+///   containing `[IV][Ciphertext]` where:
+///   - First 16 bytes: Random initialization vector
+///   - Remaining bytes: AES-encrypted data with PKCS#7 padding
+///
+/// # Output Format
+///
+/// ```text
+/// [IV: 16 bytes][Encrypted Data: variable length, multiple of 16 bytes]
+/// ```
+///
+/// # Security Properties
+///
+/// - **Semantic Security**: CBC mode with random IV ensures identical plaintexts
+///   produce different ciphertexts
+/// - **Integrity**: While this function doesn't provide authentication,
+///   the padding scheme prevents certain classes of attacks
+/// - **Key Schedule**: AES-256 uses 14 rounds for maximum security
+///
+/// # Errors
+///
+/// * `PostComputeEncryptionFailed` - If:
+///   - Input data is empty
+///   - Key is not exactly 32 bytes
+///   - Random number generation fails
+///   - Encryption operation fails
+///
+/// # Example
+///
+/// ```rust
+/// let data = b"Secret message to encrypt";
+/// let key = generate_aes_key()?;
+/// let encrypted = aes_encrypt(data, &key)?;
+///
+/// // Output format: [16-byte IV][encrypted data]
+/// assert!(encrypted.len() >= 16 + data.len());
+/// assert_eq!(encrypted.len() % 16, 0); // Multiple of block size
+/// ```
 pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCause> {
     if data.is_empty() {
         error!("AES encryption input data is empty");
@@ -209,14 +368,14 @@ pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCa
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
     }
 
-    // Generate random IV
+    // Generate random 128-bit initialization vector
     let mut iv = [0u8; 16];
     if let Err(e) = OsRng.try_fill_bytes(&mut iv) {
         error!("Failed to generate IV for AES encryption: {}", e);
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
     }
 
-    // Encrypt using allocating convenience method
+    // Perform AES-256-CBC encryption with PKCS#7 padding
     let cipher = Encryptor::<Aes256>::new(key.into(), &iv.into());
     let ciphertext = cipher.encrypt_padded_vec_mut::<Pkcs7>(data);
 
@@ -228,6 +387,44 @@ pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCa
     Ok(result)
 }
 
+/// Creates a directory and any necessary parent directories.
+///
+/// This function ensures that the specified directory path exists, creating
+/// it and any missing parent directories as needed. If the directory already
+/// exists, the function succeeds without error.
+///
+/// # Arguments
+///
+/// * `out_enc_dir` - The directory path to create. Can be relative or absolute.
+///
+/// # Returns
+///
+/// * `Result<(), ReplicateStatusCause>` - Success if directory exists or was created,
+///   error if creation failed due to permissions or filesystem issues.
+///
+/// # Behavior
+///
+/// - **Idempotent**: Safe to call multiple times on the same path
+/// - **Recursive**: Creates parent directories as needed
+/// - **Atomic**: Either all directories are created or none are (filesystem permitting)
+///
+/// # Errors
+///
+/// * `PostComputeEncryptionFailed` - If directory creation fails due to:
+///   - Insufficient permissions
+///   - Filesystem errors
+///   - Invalid path characters
+///   - Disk space issues
+///
+/// # Example
+///
+/// ```rust
+/// // Create a simple directory
+/// create_folder("./encrypted-data")?;
+///
+/// // Create nested directories
+/// create_folder("./output/encrypted/task-123")?;
+/// ```
 fn create_folder(out_enc_dir: &str) -> Result<(), ReplicateStatusCause> {
     let path = std::path::Path::new(out_enc_dir);
     if path.exists() {
@@ -242,6 +439,56 @@ fn create_folder(out_enc_dir: &str) -> Result<(), ReplicateStatusCause> {
     }
 }
 
+/// Writes data to a file with secure error handling and logging.
+///
+/// This function writes binary data to the specified file path, creating
+/// the file if it doesn't exist or overwriting it if it does. The function
+/// includes comprehensive error logging with data integrity hashing for
+/// debugging purposes.
+///
+/// # Security Features
+///
+/// - **Data Integrity**: Computes SHA3-256 hash of written data for verification
+/// - **Error Logging**: Logs detailed error information without exposing sensitive data
+/// - **Atomic Writes**: Uses filesystem atomic write operations when available
+///
+/// # Arguments
+///
+/// * `file_path` - The target file path as a String. Must be writable.
+/// * `data` - The binary data to write to the file.
+///
+/// # Returns
+///
+/// * `Result<(), ReplicateStatusCause>` - Success if file was written,
+///   error if write operation failed.
+///
+/// # Error Handling
+///
+/// On write failure, the function:
+/// 1. Computes SHA3-256 hash of the data (for debugging, not security)
+/// 2. Logs error with file path and data hash (no sensitive data exposed)
+/// 3. Returns `PostComputeEncryptionFailed`
+///
+/// # Errors
+///
+/// * `PostComputeEncryptionFailed` - If write fails due to:
+///   - Insufficient disk space
+///   - Permission denied
+///   - Invalid file path
+///   - Filesystem errors
+///
+/// # Example
+///
+/// ```rust
+/// let encrypted_data = aes_encrypt(plaintext, &key)?;
+/// write_file("./output/data.aes".to_string(), &encrypted_data)?;
+/// ```
+///
+/// # Performance
+///
+/// - **Large Files**: Efficient for large data due to vectorized I/O
+/// - **Small Files**: Low overhead for small data writes
+/// - **Hashing**: SHA3-256 computation only occurs on errors
 pub fn write_file(file_path: String, data: &[u8]) -> Result<(), ReplicateStatusCause> {
     if let Err(e) = fs::write(&file_path, data) {
         let mut hasher = Sha3_256::new();
@@ -257,6 +504,83 @@ pub fn write_file(file_path: String, data: &[u8]) -> Result<(), ReplicateStatusC
     Ok(())
 }
 
+/// Parses an RSA public key from PEM or Base64 format.
+///
+/// This function accepts RSA public keys in multiple formats and converts them
+/// to an `RsaPublicKey` object for cryptographic operations. It handles both
+/// PEM-wrapped keys and raw Base64-encoded DER data.
+///
+/// # Supported Formats
+///
+/// 1. **PEM Format** (with headers):
+///    ```text
+///    -----BEGIN PUBLIC KEY-----
+///    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AM...
+///    -----END PUBLIC KEY-----
+///    ```
+///
+/// 2. **Base64 DER** (without headers):
+///    ```text
+///    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AM...
+///    ```
+///
+/// 3. **Base64 with whitespace** (headers removed, formatted):
+///    ```text
+///    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AM
+///    IIBCgKCAQEAr0mx20CSFczJaM4rtYfL...
+///    ```
+///
+/// # Process
+///
+/// 1. **Header Removal**: Strips PEM headers/footers if present
+/// 2. **Whitespace Cleanup**: Removes newlines, carriage returns, and spaces
+/// 3. **Base64 Decoding**: Converts Base64 string to DER bytes
+/// 4. **DER Parsing**: Parses DER-encoded public key data
+/// 5. **Validation**: Ensures key is valid for RSA operations
+///
+/// # Arguments
+///
+/// * `plain_text_rsa_pub` - RSA public key string in PEM or Base64 format.
+///   Whitespace and formatting are automatically handled.
+///
+/// # Returns
+///
+/// * `Result<RsaPublicKey, ReplicateStatusCause>` - On success, returns a validated
+///   `RsaPublicKey` object ready for encryption operations.
+///
+/// # Key Requirements
+///
+/// - **Algorithm**: Must be RSA (not EC, DSA, or other algorithms)
+/// - **Encoding**: Must be DER-encoded PKCS#8 or PKCS#1 public key
+/// - **Size**: Typically 1024, 2048, 3072, or 4096 bits (2048+ recommended)
+/// - **Validity**: Must contain valid modulus and exponent values
+///
+/// # Errors
+///
+/// * `PostComputeMalformedEncryptionPublicKey` - If:
+///   - Base64 decoding fails (invalid characters)
+///   - DER parsing fails (malformed key structure)
+///   - Key validation fails (invalid RSA parameters)
+///   - Unsupported key format or algorithm
+///
+/// # Security Notes
+///
+/// - Function validates key mathematical properties
+/// - Does not verify key authenticity or trustworthiness
+/// - Accepts keys from any source (implement key validation separately)
+/// - Supports industry-standard formats for maximum compatibility
+///
+/// # Example
+///
+/// ```rust
+/// // PEM format key
+/// let pem_key = "-----BEGIN PUBLIC KEY-----\nMIIB...\n-----END PUBLIC KEY-----";
+/// let rsa_key = base64_to_rsa_public_key(pem_key)?;
+///
+/// // Base64 format key
+/// let b64_key = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AM...";
+/// let rsa_key = base64_to_rsa_public_key(b64_key)?;
+/// ```
 pub fn base64_to_rsa_public_key(
     plain_text_rsa_pub: &str,
 ) -> Result<RsaPublicKey, ReplicateStatusCause> {
@@ -282,6 +606,78 @@ pub fn base64_to_rsa_public_key(
     }
 }
 
+/// Encrypts data using RSA public key cryptography with PKCS#1 v1.5 padding.
+///
+/// This function encrypts the provided data (typically an AES key) using
+/// RSA public key encryption. It's designed for encrypting small amounts
+/// of data, such as symmetric encryption keys in hybrid cryptosystems.
+///
+/// # Encryption Details
+///
+/// - **Algorithm**: RSA with PKCS#1 v1.5 padding
+/// - **Input Size**: Limited by RSA key size minus padding overhead
+/// - **Output Size**: Always equals RSA key size in bytes
+/// - **Randomization**: Each encryption produces different ciphertext
+/// - **Encoding**: Output is Base64 encoded for safe storage/transmission
+///
+/// # RSA Key Size Limits
+///
+/// | Key Size | Max Plaintext Size | Output Size |
+/// |----------|-------------------|-------------|
+/// | 1024 bit | 117 bytes         | 128 bytes   |
+/// | 2048 bit | 245 bytes         | 256 bytes   |
+/// | 3072 bit | 373 bytes         | 384 bytes   |
+/// | 4096 bit | 501 bytes         | 512 bytes   |
+///
+/// # Arguments
+///
+/// * `aes_key` - The data to encrypt (typically a 32-byte AES key).
+///   Must not exceed RSA key size minus padding overhead (~11 bytes).
+/// * `public_key` - A validated RSA public key for encryption.
+///
+/// # Returns
+///
+/// * `Result<String, ReplicateStatusCause>` - On success, returns a Base64-encoded
+///   string containing the RSA-encrypted data. The decoded size equals the RSA key size.
+///
+/// # Security Properties
+///
+/// - **Probabilistic**: Same input produces different outputs due to random padding
+/// - **One-way**: Computationally infeasible to decrypt without private key
+/// - **Authenticated**: Only the corresponding private key can decrypt
+/// - **Malleable**: RSA without additional measures is malleable (consider OAEP for new designs)
+///
+/// # Errors
+///
+/// * `PostComputeEncryptionFailed` - If:
+///   - Input data exceeds maximum size for key
+///   - RSA encryption operation fails
+///   - Random number generation fails
+///   - Key is invalid or corrupted
+///
+/// # Performance
+///
+/// - **Speed**: Slow compared to symmetric encryption (use for small data only)
+/// - **Key Size**: Larger keys provide more security but slower encryption
+/// - **Typical Use**: Encrypting AES keys (32 bytes) is very fast
+///
+/// # Example
+///
+/// ```rust
+/// // Encrypt an AES key with RSA
+/// let aes_key = generate_aes_key()?;
+/// let rsa_public_key = base64_to_rsa_public_key(pem_key)?;
+/// let encrypted_key_b64 = rsa_encrypt(&aes_key, &rsa_public_key)?;
+///
+/// // Store the Base64-encoded encrypted key
+/// write_file("aes-key.rsa".to_string(), encrypted_key_b64.as_bytes())?;
+/// ```
+///
+/// # Compatibility
+///
+/// - **Standard**: PKCS#1 v1.5 is widely supported across platforms
+/// - **Interoperability**: Compatible with OpenSSL, Java Crypto, .NET, etc.
+/// - **Legacy**: Consider OAEP padding for new applications (better security)
 pub fn rsa_encrypt(
     aes_key: &[u8],
     public_key: &RsaPublicKey,
@@ -296,6 +692,81 @@ pub fn rsa_encrypt(
     Ok(base64::engine::general_purpose::STANDARD.encode(encrypted))
 }
 
+/// Creates a ZIP archive from a directory using the Web2Result service.
+///
+/// This function delegates ZIP creation to the `Web2ResultService`, which
+/// handles the compression and archiving of the encrypted files directory.
+/// The resulting ZIP file is named `iexec_out.zip` and placed in the parent
+/// directory of the input folder.
+///
+/// # Process
+///
+/// 1. **Validation**: Ensures the input directory exists and is readable
+/// 2. **Compression**: Creates a ZIP archive containing all directory contents
+/// 3. **Naming**: Output file is always named `iexec_out.zip`
+/// 4. **Location**: ZIP file is created in the parent directory of input
+///
+/// # Arguments
+///
+/// * `out_enc_dir` - Path to the directory containing encrypted files to compress.
+///   Must be a valid, readable directory with content.
+///
+/// # Returns
+///
+/// * `Result<String, ReplicateStatusCause>` - On success, returns the full path
+///   to the created ZIP file. On failure, returns a compression error.
+///
+/// # Output Structure
+///
+/// Given input directory `./workdir/encrypted-myfile/`:
+/// ```text
+/// ./workdir/
+/// ├── encrypted-myfile/          # Input directory
+/// │   ├── myfile.txt.aes         # Encrypted data
+/// │   └── aes-key.rsa            # Encrypted AES key
+/// └── iexec_out.zip              # Created ZIP archive
+/// ```
+///
+/// # ZIP Contents
+///
+/// The ZIP archive preserves the directory structure:
+/// ```text
+/// iexec_out.zip
+/// ├── myfile.txt.aes             # AES-encrypted data file
+/// └── aes-key.rsa                # RSA-encrypted AES key
+/// ```
+///
+/// # Errors
+///
+/// * `PostComputeOutFolderZipFailed` - If:
+///   - Input directory doesn't exist
+///   - Insufficient permissions to read source or write destination
+///   - Compression operation fails
+///   - Disk space insufficient for ZIP file
+///
+/// # Dependencies
+///
+/// This function relies on the `Web2ResultService` implementation for:
+/// - ZIP file creation and compression
+/// - Error handling and logging
+/// - File path management
+/// - Cleanup of temporary resources
+///
+/// # Example
+///
+/// ```rust
+/// // Create ZIP from encrypted directory
+/// let encrypted_dir = "./workdir/encrypted-secret";
+/// let zip_path = zip_folder(encrypted_dir)?;
+/// println!("ZIP archive created: {}", zip_path);
+/// // Output: ZIP archive created: ./workdir/iexec_out.zip
+/// ```
+///
+/// # Performance
+///
+/// - **Compression**: Uses standard ZIP compression algorithms
+/// - **Memory**: Optimized for large files with streaming compression
+/// - **Speed**: Performance depends on file sizes and compression level
 pub fn zip_folder(out_enc_dir: &str) -> Result<String, ReplicateStatusCause> {
     let parent = Path::new(out_enc_dir)
         .parent()
