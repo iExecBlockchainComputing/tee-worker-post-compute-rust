@@ -446,12 +446,6 @@ fn create_folder(out_enc_dir: &str) -> Result<(), ReplicateStatusCause> {
 /// includes comprehensive error logging with data integrity hashing for
 /// debugging purposes.
 ///
-/// # Security Features
-///
-/// - **Data Integrity**: Computes SHA3-256 hash of written data for verification
-/// - **Error Logging**: Logs detailed error information without exposing sensitive data
-/// - **Atomic Writes**: Uses filesystem atomic write operations when available
-///
 /// # Arguments
 ///
 /// * `file_path` - The target file path as a String. Must be writable.
@@ -483,12 +477,6 @@ fn create_folder(out_enc_dir: &str) -> Result<(), ReplicateStatusCause> {
 /// let encrypted_data = aes_encrypt(plaintext, &key)?;
 /// write_file("./output/data.aes".to_string(), &encrypted_data)?;
 /// ```
-///
-/// # Performance
-///
-/// - **Large Files**: Efficient for large data due to vectorized I/O
-/// - **Small Files**: Low overhead for small data writes
-/// - **Hashing**: SHA3-256 computation only occurs on errors
 pub fn write_file(file_path: String, data: &[u8]) -> Result<(), ReplicateStatusCause> {
     if let Err(e) = fs::write(&file_path, data) {
         let mut hasher = Sha3_256::new();
@@ -620,15 +608,6 @@ pub fn base64_to_rsa_public_key(
 /// - **Randomization**: Each encryption produces different ciphertext
 /// - **Encoding**: Output is Base64 encoded for safe storage/transmission
 ///
-/// # RSA Key Size Limits
-///
-/// | Key Size | Max Plaintext Size | Output Size |
-/// |----------|-------------------|-------------|
-/// | 1024 bit | 117 bytes         | 128 bytes   |
-/// | 2048 bit | 245 bytes         | 256 bytes   |
-/// | 3072 bit | 373 bytes         | 384 bytes   |
-/// | 4096 bit | 501 bytes         | 512 bytes   |
-///
 /// # Arguments
 ///
 /// * `aes_key` - The data to encrypt (typically a 32-byte AES key).
@@ -655,12 +634,6 @@ pub fn base64_to_rsa_public_key(
 ///   - Random number generation fails
 ///   - Key is invalid or corrupted
 ///
-/// # Performance
-///
-/// - **Speed**: Slow compared to symmetric encryption (use for small data only)
-/// - **Key Size**: Larger keys provide more security but slower encryption
-/// - **Typical Use**: Encrypting AES keys (32 bytes) is very fast
-///
 /// # Example
 ///
 /// ```rust
@@ -672,12 +645,6 @@ pub fn base64_to_rsa_public_key(
 /// // Store the Base64-encoded encrypted key
 /// write_file("aes-key.rsa".to_string(), encrypted_key_b64.as_bytes())?;
 /// ```
-///
-/// # Compatibility
-///
-/// - **Standard**: PKCS#1 v1.5 is widely supported across platforms
-/// - **Interoperability**: Compatible with OpenSSL, Java Crypto, .NET, etc.
-/// - **Legacy**: Consider OAEP padding for new applications (better security)
 pub fn rsa_encrypt(
     aes_key: &[u8],
     public_key: &RsaPublicKey,
@@ -761,12 +728,6 @@ pub fn rsa_encrypt(
 /// println!("ZIP archive created: {}", zip_path);
 /// // Output: ZIP archive created: ./workdir/iexec_out.zip
 /// ```
-///
-/// # Performance
-///
-/// - **Compression**: Uses standard ZIP compression algorithms
-/// - **Memory**: Optimized for large files with streaming compression
-/// - **Speed**: Performance depends on file sizes and compression level
 pub fn zip_folder(out_enc_dir: &str) -> Result<String, ReplicateStatusCause> {
     let parent = Path::new(out_enc_dir)
         .parent()
