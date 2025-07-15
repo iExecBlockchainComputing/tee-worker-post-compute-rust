@@ -1,4 +1,4 @@
-use crate::api::result_proxy_api_client::{ResultModel, ResultProxyApiClient};
+use crate::api::result_proxy_api_client::{ResultProxyApiClient, StreamingResultModel};
 use crate::compute::{
     computed_file::ComputedFile,
     errors::ReplicateStatusCause,
@@ -410,7 +410,7 @@ impl Web2ResultInterface for Web2ResultService {
         Ok(result_link)
     }
 
-    /// Uploads a file to IPFS using the iExec result proxy service.
+    /// Uploads a file to IPFS in streaming mode using the iExec result proxy service.
     ///
     /// This method specifically handles uploads to IPFS through the iExec result proxy.
     /// It creates a [`ResultModel`] with the necessary metadata and sends it to the
@@ -434,9 +434,10 @@ impl Web2ResultInterface for Web2ResultService {
         token: &str,
         file_to_upload_path: &str,
     ) -> Result<String, ReplicateStatusCause> {
+
         let task_id = computed_file.task_id.as_ref().unwrap();
 
-        let file_to_upload = fs::read(file_to_upload_path).map_err(|e| {
+        let file = File::open(file_to_upload_path).map_err(|e| {
             error!(
                 "Can't upload_to_ipfs_with_iexec_proxy (missing file_path to upload) [task_id:{}, file_to_upload_path:{}]: {}",
                 task_id, file_to_upload_path, e
@@ -444,16 +445,25 @@ impl Web2ResultInterface for Web2ResultService {
             ReplicateStatusCause::PostComputeResultFileNotFound
         })?;
 
-        let result_model = ResultModel {
+        let file_name = Path::new(file_to_upload_path)
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        
+
+        let streaming_result_model = StreamingResultModel {
             chain_task_id: task_id.clone(),
             determinist_hash: computed_file.result_digest.as_ref().unwrap().clone(),
             enclave_signature: computed_file.enclave_signature.as_ref().unwrap().clone(),
-            zip: file_to_upload,
+            zip_file_path: file_name.clone(),
             ..Default::default()
         };
 
+        
         let client = ResultProxyApiClient::new(base_url);
-        match client.upload_to_ipfs(token, &result_model) {
+
+        match client.upload_to_ipfs_streaming(token, &streaming_result_model, file) {
             Ok(ipfs_link) => Ok(ipfs_link),
             Err(e) => {
                 error!(
@@ -465,6 +475,8 @@ impl Web2ResultInterface for Web2ResultService {
         }
     }
 }
+
+
 
 #[cfg(test)]
 mod tests {
