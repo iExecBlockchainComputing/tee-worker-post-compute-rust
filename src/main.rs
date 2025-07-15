@@ -1,10 +1,12 @@
-use env_logger::Env;
+use env_logger::{Builder, Env, Target};
 use std::process;
 
 mod api;
 mod compute;
 
 fn main() {
-    env_logger::init_from_env(Env::default().default_filter_or("info"));
+    Builder::from_env(Env::default().default_filter_or("info"))
+        .target(Target::Stdout)
+        .init();
     process::exit(compute::app_runner::start());
 }
