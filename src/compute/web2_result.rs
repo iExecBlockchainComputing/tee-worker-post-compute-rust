@@ -9,7 +9,6 @@ use base64::{Engine as _, engine::general_purpose};
 use log::{debug, error, info};
 #[cfg(test)]
 use mockall::automock;
-use std::error::Error;
 use std::{
     fs::{self, File},
     io::{self, Write},
@@ -54,8 +53,10 @@ const DROPBOX_RESULT_STORAGE_PROVIDER: &str = "dropbox";
 /// ```
 #[cfg_attr(test, automock)]
 pub trait Web2ResultInterface {
-    fn encrypt_and_upload_result(&self, computed_file: &ComputedFile)
-    -> Result<(), Box<dyn Error>>;
+    fn encrypt_and_upload_result(
+        &self,
+        computed_file: &ComputedFile,
+    ) -> Result<(), ReplicateStatusCause>;
     fn check_result_files_name(
         &self,
         task_id: &str,
@@ -66,7 +67,10 @@ pub trait Web2ResultInterface {
         iexec_out_path: &str,
         save_in: &str,
     ) -> Result<String, ReplicateStatusCause>;
-    fn eventually_encrypt_result(&self, in_data_file_path: &str) -> Result<String, Box<dyn Error>>;
+    fn eventually_encrypt_result(
+        &self,
+        in_data_file_path: &str,
+    ) -> Result<String, ReplicateStatusCause>;
     fn upload_result(
         &self,
         computed_file: &ComputedFile,
@@ -223,7 +227,7 @@ impl Web2ResultInterface for Web2ResultService {
     fn encrypt_and_upload_result(
         &self,
         computed_file: &ComputedFile,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ReplicateStatusCause> {
         // check result file names are not too long
         self.check_result_files_name(computed_file.task_id.as_ref().unwrap(), "/iexec_out")?;
 
@@ -232,9 +236,7 @@ impl Web2ResultInterface for Web2ResultService {
             Ok(path) => path,
             Err(..) => {
                 error!("zipIexecOut stage failed");
-                return Err(Box::new(
-                    ReplicateStatusCause::PostComputeOutFolderZipFailed,
-                ));
+                return Err(ReplicateStatusCause::PostComputeOutFolderZipFailed);
             }
         };
 
@@ -361,7 +363,7 @@ impl Web2ResultInterface for Web2ResultService {
     /// # Returns
     ///
     /// * `Ok(String)` - Path to the encrypted ZIP file if encryption is enabled, or the original file path if not.
-    /// * `Err(Box<dyn Error>)` - If environment variables are missing, invalid, or encryption fails.
+    /// * `Err(ReplicateStatusCause)` - If environment variables are missing, invalid, or encryption fails.
     ///
     /// # Errors
     ///
@@ -383,7 +385,10 @@ impl Web2ResultInterface for Web2ResultService {
     /// let encrypted_path = Web2ResultService.eventually_encrypt_result("/path/to/result.zip").unwrap();
     /// println!("Encrypted file at: {}", encrypted_path);
     /// ```
-    fn eventually_encrypt_result(&self, in_data_file_path: &str) -> Result<String, Box<dyn Error>> {
+    fn eventually_encrypt_result(
+        &self,
+        in_data_file_path: &str,
+    ) -> Result<String, ReplicateStatusCause> {
         info!("Encryption stage started");
         let should_encrypt: bool = match get_env_var_or_error(
             TeeSessionEnvironmentVariable::ResultEncryption,
@@ -393,15 +398,15 @@ impl Web2ResultInterface for Web2ResultService {
                 Ok(parsed_value) => parsed_value,
                 Err(e) => {
                     error!(
-                        "Failed to parse RESULT_ENCRYPTION environment variable as a boolean [callback_env_var:{}]",
-                        value
+                        "Failed to parse RESULT_ENCRYPTION environment variable as a boolean [callback_env_var:{}] : {}",
+                        value, e
                     );
-                    return Err(Box::new(e));
+                    return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
                 }
             },
             Err(e) => {
                 error!("Failed to get RESULT_ENCRYPTION environment variable");
-                return Err(Box::new(e));
+                return Err(e);
             }
         };
 
@@ -411,13 +416,10 @@ impl Web2ResultInterface for Web2ResultService {
         }
 
         info!("Encryption stage mode: ENCRYPTION_REQUESTED");
-        let beneficiary_rsa_public_key_base64 = match get_env_var_or_error(
+        let beneficiary_rsa_public_key_base64 = get_env_var_or_error(
             TeeSessionEnvironmentVariable::ResultEncryptionPublicKey,
             ReplicateStatusCause::PostComputeEncryptionPublicKeyMissing,
-        ) {
-            Ok(key) => key,
-            Err(e) => return Err(Box::new(e)),
-        };
+        )?;
 
         let plain_text_beneficiary_rsa_public_key =
             match general_purpose::STANDARD.decode(beneficiary_rsa_public_key_base64) {
@@ -425,16 +427,12 @@ impl Web2ResultInterface for Web2ResultService {
                     Ok(key_string) => key_string,
                     Err(e) => {
                         error!("Decoded key is not valid UTF-8: {}", e);
-                        return Err(Box::new(
-                            ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey,
-                        ));
+                        return Err(ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey);
                     }
                 },
                 Err(e) => {
                     error!("Result encryption public key base64 decoding failed: {}", e);
-                    return Err(Box::new(
-                        ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey,
-                    ));
+                    return Err(ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey);
                 }
             };
 
@@ -443,16 +441,14 @@ impl Web2ResultInterface for Web2ResultService {
             &plain_text_beneficiary_rsa_public_key,
             true,
         ) {
-            Ok(file) if file.is_empty() => {
-                Err(Box::new(ReplicateStatusCause::PostComputeEncryptionFailed))
-            }
+            Ok(file) if file.is_empty() => Err(ReplicateStatusCause::PostComputeEncryptionFailed),
             Ok(file) => {
                 info!("Encryption stage completed");
                 Ok(file)
             }
             Err(e) => {
                 error!("Result encryption failed: {}", e);
-                Err(Box::new(ReplicateStatusCause::PostComputeEncryptionFailed))
+                Err(ReplicateStatusCause::PostComputeEncryptionFailed)
             }
         }
     }
@@ -608,15 +604,13 @@ mod tests {
     fn run_encrypt_and_upload_result<T: Web2ResultInterface>(
         service: &T,
         computed_file: &ComputedFile,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), ReplicateStatusCause> {
         service.check_result_files_name(computed_file.task_id.as_ref().unwrap(), "/iexec_out")?;
         let zip_path = match service.zip_iexec_out("/iexec_out", SLASH_POST_COMPUTE_TMP) {
             Ok(path) => path,
             Err(..) => {
                 error!("zipIexecOut stage failed");
-                return Err(Box::new(
-                    ReplicateStatusCause::PostComputeOutFolderZipFailed,
-                ));
+                return Err(ReplicateStatusCause::PostComputeOutFolderZipFailed);
             }
         };
         let result_path = service.eventually_encrypt_result(&zip_path)?;
@@ -674,11 +668,7 @@ mod tests {
         let result = run_encrypt_and_upload_result(&web2_result_mock, &computed_file);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.is::<ReplicateStatusCause>());
-        assert_eq!(
-            *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
-            ReplicateStatusCause::PostComputeOutFolderZipFailed
-        );
+        assert_eq!(err, ReplicateStatusCause::PostComputeOutFolderZipFailed);
     }
 
     #[test]
@@ -693,11 +683,7 @@ mod tests {
         let result = run_encrypt_and_upload_result(&web2_result_mock, &computed_file);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.is::<ReplicateStatusCause>());
-        assert_eq!(
-            *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
-            ReplicateStatusCause::PostComputeTooLongResultFileName
-        );
+        assert_eq!(err, ReplicateStatusCause::PostComputeTooLongResultFileName);
     }
 
     #[test]
@@ -722,16 +708,12 @@ mod tests {
             .expect_eventually_encrypt_result()
             .with(eq(zip_path))
             .times(1)
-            .returning(|_| Err(Box::new(ReplicateStatusCause::PostComputeEncryptionFailed)));
+            .returning(|_| Err(ReplicateStatusCause::PostComputeEncryptionFailed));
 
         let result = run_encrypt_and_upload_result(&web2_result_mock, &computed_file);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.is::<ReplicateStatusCause>());
-        assert_eq!(
-            *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
-            ReplicateStatusCause::PostComputeEncryptionFailed
-        );
+        assert_eq!(err, ReplicateStatusCause::PostComputeEncryptionFailed);
     }
 
     #[test]
@@ -761,11 +743,7 @@ mod tests {
         let result = run_encrypt_and_upload_result(&web2_result_mock, &computed_file);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.is::<ReplicateStatusCause>());
-        assert_eq!(
-            *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
-            ReplicateStatusCause::PostComputeIpfsUploadFailed
-        );
+        assert_eq!(err, ReplicateStatusCause::PostComputeIpfsUploadFailed);
     }
     // endregion
 
@@ -1105,32 +1083,34 @@ FQIDAQAB
                 let result = Web2ResultService.eventually_encrypt_result(file_path);
                 assert!(result.is_err());
                 let err = result.unwrap_err();
-                assert!(err.is::<ReplicateStatusCause>());
-                assert_eq!(
-                    *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
-                    ReplicateStatusCause::PostComputeFailedUnknownIssue
-                );
+                assert_eq!(err, ReplicateStatusCause::PostComputeFailedUnknownIssue);
             },
         );
     }
 
     #[test]
-    fn eventually_encrypt_result_returns_error_when_encryption_env_var_invalid() {
+    fn eventually_encrypt_result_handles_various_invalid_boolean_values_when_parsing_fails() {
         let test_file = create_temp_file_with_text("test content");
         let file_path = test_file.path().to_str().unwrap();
 
-        with_vars(
-            vec![(
-                TeeSessionEnvironmentVariable::ResultEncryption.name(),
-                Some("invalid_boolean"),
-            )],
-            || {
-                let result = Web2ResultService.eventually_encrypt_result(file_path);
-                assert!(result.is_err());
-                let err = result.unwrap_err();
-                assert!(err.is::<std::str::ParseBoolError>());
-            },
-        );
+        let invalid_values = ["invalid", "yes", "no", "1", "0", "True", "False", ""];
+
+        for invalid_value in invalid_values {
+            with_vars(
+                vec![(
+                    TeeSessionEnvironmentVariable::ResultEncryption.name(),
+                    Some(invalid_value),
+                )],
+                || {
+                    let result = Web2ResultService.eventually_encrypt_result(file_path);
+                    assert!(result.is_err(), "Should fail for value: {}", invalid_value);
+                    assert_eq!(
+                        result.unwrap_err(),
+                        ReplicateStatusCause::PostComputeFailedUnknownIssue
+                    );
+                },
+            );
+        }
     }
 
     #[test]
@@ -1153,9 +1133,8 @@ FQIDAQAB
                 let result = Web2ResultService.eventually_encrypt_result(file_path);
                 assert!(result.is_err());
                 let err = result.unwrap_err();
-                assert!(err.is::<ReplicateStatusCause>());
                 assert_eq!(
-                    *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
+                    err,
                     ReplicateStatusCause::PostComputeEncryptionPublicKeyMissing
                 );
             },
@@ -1182,9 +1161,8 @@ FQIDAQAB
                 let result = Web2ResultService.eventually_encrypt_result(file_path);
                 assert!(result.is_err());
                 let err = result.unwrap_err();
-                assert!(err.is::<ReplicateStatusCause>());
                 assert_eq!(
-                    *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
+                    err,
                     ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey
                 );
             },
@@ -1213,9 +1191,8 @@ FQIDAQAB
                 let result = Web2ResultService.eventually_encrypt_result(file_path);
                 assert!(result.is_err());
                 let err = result.unwrap_err();
-                assert!(err.is::<ReplicateStatusCause>());
                 assert_eq!(
-                    *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
+                    err,
                     ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey
                 );
             },
@@ -1244,11 +1221,7 @@ FQIDAQAB
                 let result = Web2ResultService.eventually_encrypt_result(file_path);
                 assert!(result.is_err());
                 let err = result.unwrap_err();
-                assert!(err.is::<ReplicateStatusCause>());
-                assert_eq!(
-                    *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
-                    ReplicateStatusCause::PostComputeEncryptionFailed
-                );
+                assert_eq!(err, ReplicateStatusCause::PostComputeEncryptionFailed);
             },
         );
     }
@@ -1273,11 +1246,7 @@ FQIDAQAB
                 let result = Web2ResultService.eventually_encrypt_result(file_path);
                 assert!(result.is_err());
                 let err = result.unwrap_err();
-                assert!(err.is::<ReplicateStatusCause>());
-                assert_eq!(
-                    *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
-                    ReplicateStatusCause::PostComputeEncryptionFailed
-                );
+                assert_eq!(err, ReplicateStatusCause::PostComputeEncryptionFailed);
             },
         );
     }

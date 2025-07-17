@@ -10,7 +10,7 @@ use log::error;
 use rand::{RngCore, rngs::OsRng};
 use rsa::{Pkcs1v15Encrypt, RsaPublicKey, pkcs8::DecodePublicKey};
 use sha3::{Digest, Sha3_256};
-use std::{error::Error, fs, path::Path};
+use std::{fs, path::Path};
 
 /// Encrypts a data file using hybrid encryption (AES-256-CBC + RSA-2048).
 ///
@@ -37,7 +37,7 @@ use std::{error::Error, fs, path::Path};
 ///
 /// # Returns
 ///
-/// * `Result<String, Box<dyn Error>>` - On success, returns the path to either:
+/// * `Result<String, ReplicateStatusCause>` - On success, returns the path to either:
 ///   - ZIP file path (if `produce_zip` is `true`)
 ///   - Directory path containing encrypted files (if `produce_zip` is `false`)
 ///   - Empty string for non-critical failures (operation continues but with warnings)
@@ -87,7 +87,7 @@ pub fn encrypt_data(
     in_data_file_path: &str,
     plain_text_rsa_pub: &str,
     produce_zip: bool,
-) -> Result<String, Box<dyn Error>> {
+) -> Result<String, ReplicateStatusCause> {
     let path = Path::new(in_data_file_path);
     let in_data_filename = match path.file_name().and_then(|name| name.to_str()) {
         Some(name) => name,
@@ -96,7 +96,7 @@ pub fn encrypt_data(
                 "Failed to extract filename from path: {}",
                 in_data_file_path
             );
-            return Err(Box::new(ReplicateStatusCause::PostComputeEncryptionFailed));
+            return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
         }
     };
     let out_encrypted_data_filename = format!("{}.aes", in_data_filename);
@@ -105,7 +105,7 @@ pub fn encrypt_data(
         Some(dir) => dir,
         None => {
             error!("Failed to get parent directory of: {}", in_data_file_path);
-            return Err(Box::new(ReplicateStatusCause::PostComputeEncryptionFailed));
+            return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
         }
     };
 
@@ -116,7 +116,7 @@ pub fn encrypt_data(
                 "Failed to extract filename without extension from '{}'",
                 in_data_file_path
             );
-            return Err(Box::new(ReplicateStatusCause::PostComputeEncryptionFailed));
+            return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
         }
     };
     let out_enc_dir = format!("{}/{}{}", work_dir, "encrypted-", filename_without_ext); //location of future encrypted files (./encrypted-0x1_result)
@@ -139,7 +139,7 @@ pub fn encrypt_data(
                 "Failed to encrypt_data (read_file error) [in_data_file_path:{}]: {}",
                 in_data_file_path, e
             );
-            return Err(Box::new(ReplicateStatusCause::PostComputeEncryptionFailed));
+            return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
         }
     };
 
@@ -903,15 +903,7 @@ FQIDAQAB
         );
 
         let err = result.err().unwrap();
-        assert!(
-            err.is::<ReplicateStatusCause>(),
-            "Error should be a ReplicateStatusCause, but was {:?}",
-            err
-        );
-        assert_eq!(
-            *err.downcast_ref::<ReplicateStatusCause>().unwrap(),
-            ReplicateStatusCause::PostComputeEncryptionFailed
-        );
+        assert_eq!(err, ReplicateStatusCause::PostComputeEncryptionFailed);
     }
 
     #[test]
