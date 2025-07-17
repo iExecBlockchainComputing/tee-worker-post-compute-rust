@@ -3,6 +3,8 @@ use std::env;
 
 pub enum TeeSessionEnvironmentVariable {
     IexecTaskId,
+    ResultEncryption,
+    ResultEncryptionPublicKey,
     ResultStorageCallback,
     ResultStorageProvider,
     ResultStorageProxy,
@@ -16,6 +18,10 @@ impl TeeSessionEnvironmentVariable {
     pub fn name(&self) -> &str {
         match self {
             TeeSessionEnvironmentVariable::IexecTaskId => "IEXEC_TASK_ID",
+            TeeSessionEnvironmentVariable::ResultEncryption => "RESULT_ENCRYPTION",
+            TeeSessionEnvironmentVariable::ResultEncryptionPublicKey => {
+                "RESULT_ENCRYPTION_PUBLIC_KEY"
+            }
             TeeSessionEnvironmentVariable::ResultStorageCallback => "RESULT_STORAGE_CALLBACK",
             TeeSessionEnvironmentVariable::ResultStorageProvider => "RESULT_STORAGE_PROVIDER",
             TeeSessionEnvironmentVariable::ResultStorageProxy => "RESULT_STORAGE_PROXY",
