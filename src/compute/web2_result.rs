@@ -1032,18 +1032,15 @@ mod tests {
                     "Encrypted zip file should exist at {}",
                     output_zip_path_str
                 );
-                assert_eq!(output_zip_path.extension().unwrap_or_default(), "zip");
-                assert_eq!(
-                    output_zip_path.file_name().unwrap().to_str().unwrap(),
-                    "iexec_out.zip"
-                );
+                assert_eq!(output_zip_path.file_name().unwrap(), "iexec_out.zip");
                 assert_eq!(output_zip_path.parent().unwrap(), input_dir);
                 let zip_file_reader =
                     File::open(output_zip_path).expect("Failed to open output zip file for check");
                 let mut archive = ZipArchive::new(zip_file_reader)
                     .expect("Failed to read output zip archive for check");
-                assert!(
-                    archive.len() == 2,
+                assert_eq!(
+                    archive.len(),
+                    2,
                     "Encrypted zip archive should contain 2 files. Found: {}",
                     archive.len()
                 );
