@@ -392,7 +392,7 @@ impl Web2ResultInterface for Web2ResultService {
         info!("Encryption stage started");
         let should_encrypt: bool = match get_env_var_or_error(
             TeeSessionEnvironmentVariable::ResultEncryption,
-            ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO: Update this error cause to a more specific one
+            ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Update this error cause to a more specific one
         ) {
             Ok(value) => match value.to_lowercase().parse::<bool>() {
                 Ok(parsed_value) => parsed_value,
@@ -640,7 +640,7 @@ mod tests {
             .expect_eventually_encrypt_result()
             .with(eq(zip_path))
             .times(1)
-            .returning(move |_| Ok(String::from("/post-compute-tmp/iexec_out.zip")));
+            .returning(|_| Ok(String::from("/post-compute-tmp/iexec_out.zip")));
 
         web2_result_mock
             .expect_upload_result()
@@ -666,9 +666,10 @@ mod tests {
             .returning(|_, _| Err(ReplicateStatusCause::PostComputeOutFolderZipFailed));
 
         let result = run_encrypt_and_upload_result(&web2_result_mock, &computed_file);
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert_eq!(err, ReplicateStatusCause::PostComputeOutFolderZipFailed);
+        assert_eq!(
+            result,
+            Err(ReplicateStatusCause::PostComputeOutFolderZipFailed)
+        );
     }
 
     #[test]
@@ -681,9 +682,10 @@ mod tests {
             .returning(|_, _| Err(ReplicateStatusCause::PostComputeTooLongResultFileName));
 
         let result = run_encrypt_and_upload_result(&web2_result_mock, &computed_file);
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert_eq!(err, ReplicateStatusCause::PostComputeTooLongResultFileName);
+        assert_eq!(
+            result,
+            Err(ReplicateStatusCause::PostComputeTooLongResultFileName)
+        );
     }
 
     #[test]
@@ -711,9 +713,10 @@ mod tests {
             .returning(|_| Err(ReplicateStatusCause::PostComputeEncryptionFailed));
 
         let result = run_encrypt_and_upload_result(&web2_result_mock, &computed_file);
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert_eq!(err, ReplicateStatusCause::PostComputeEncryptionFailed);
+        assert_eq!(
+            result,
+            Err(ReplicateStatusCause::PostComputeEncryptionFailed)
+        );
     }
 
     #[test]
@@ -741,9 +744,10 @@ mod tests {
             .returning(|_, _| Err(ReplicateStatusCause::PostComputeIpfsUploadFailed));
 
         let result = run_encrypt_and_upload_result(&web2_result_mock, &computed_file);
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert_eq!(err, ReplicateStatusCause::PostComputeIpfsUploadFailed);
+        assert_eq!(
+            result,
+            Err(ReplicateStatusCause::PostComputeIpfsUploadFailed)
+        );
     }
     // endregion
 
@@ -785,10 +789,9 @@ mod tests {
 
         let result =
             Web2ResultService.check_result_files_name(task_id, temp_dir.path().to_str().unwrap());
-        assert!(result.is_err());
         assert_eq!(
-            result.unwrap_err(),
-            ReplicateStatusCause::PostComputeTooLongResultFileName
+            result,
+            Err(ReplicateStatusCause::PostComputeTooLongResultFileName)
         );
     }
 
@@ -798,10 +801,9 @@ mod tests {
         let non_existent_path = "/dummy/folder/that/doesnt/exist";
 
         let result = Web2ResultService.check_result_files_name(task_id, non_existent_path);
-        assert!(result.is_err());
         assert_eq!(
-            result.unwrap_err(),
-            ReplicateStatusCause::PostComputeFailedUnknownIssue
+            result,
+            Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
         );
     }
 
@@ -820,10 +822,9 @@ mod tests {
 
         let result =
             Web2ResultService.check_result_files_name(task_id, temp_dir.path().to_str().unwrap());
-        assert!(result.is_err());
         assert_eq!(
-            result.unwrap_err(),
-            ReplicateStatusCause::PostComputeTooLongResultFileName
+            result,
+            Err(ReplicateStatusCause::PostComputeTooLongResultFileName)
         );
     }
 
@@ -935,10 +936,9 @@ mod tests {
 
         let result =
             Web2ResultService.zip_iexec_out(source_dir.path().to_str().unwrap(), invalid_dest);
-        assert!(result.is_err());
         assert_eq!(
-            result.unwrap_err(),
-            ReplicateStatusCause::PostComputeOutFolderZipFailed
+            result,
+            Err(ReplicateStatusCause::PostComputeOutFolderZipFailed)
         );
     }
 
@@ -996,19 +996,7 @@ mod tests {
         );
     }
 
-    const TEST_RSA_PUBLIC_KEY_PEM: &str = r#"-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr0mx20CSFczJaM4rtYfL
-VHXfTybD4J85SGrI6GfPlOhAnocZOMIRJVqrYSGqfNvw6bnv3OrNp0OJ6Av7v20r
-YiciyJ/R9c7W4jLksTC0qAEr1x8IsH1rsTcgIhD+V2eQWqi05ArUg+YDQiGr/B6T
-jJRbbZIjcX6l/let03NJ8b6vMgaY+6tpt9GXhm27/tVIG6vt0NYViU0cOY3+fRH7
-M1XvGQa3D0LnJTvhAgljz3Jpl7whAWQgluVDVNq7erJVN7/d5jpTG29FWrAYujvs
-KfizbB8KpGwCHwFcHZurz9+Sp4mH5cQCvz/VhFrAvzbhsIl6Qf8XURHmqxYc/DRt
-FQIDAQAB
------END PUBLIC KEY-----"#;
-
-    fn get_base64_encoded_valid_rsa_key() -> String {
-        general_purpose::STANDARD.encode(TEST_RSA_PUBLIC_KEY_PEM)
-    }
+    const TEST_RSA_PUBLIC_KEY_PEM: &str = "LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQ0lqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FnOEFNSUlDQ2dLQ0FnRUF2clVtUnVMV3UvMm83ci8xSW9ocQp6RkJTUE93T0xYVlJoZjhBUThDcmZnZWRacE1Ld3huWUk4UGJad09oWEpIMzZLZk1UcnhRVjR3aFhlalZqNjdDCjFaMkFMZjBPcC84dXlKY3JuTlhUYXhhVmY0c1Y0RXB0eTBocTNLSGtuU0J0cTBSOENTV1IxeFI4RGNpR1hJaGgKTkllVkZaazZOS291czZ2Tkt6cWZCbDJWMVorRzJ5eEhCLzNiVE0yWjUyMXgxOUZpWUlkUk91TVlwRFRnVXllagpZTll4Vk5CZlVSWmFHcGhPS1FqYThYWkVuSVR1b0toWVpZclc1NVhuVWM5NHQ4TDgrbzgzVmY0OU9oc1JKQStlCk9IOEFSZGhkN3V0c1lwOVBzcko0bFE3d3N5cFhzNWNpQ0Q3T1c4Y3MvbFFEYk9HRHlPZVlMb0pOeUpWQ1lIUWsKSVR4QTluaWE0aU9iNjdaRUN1UkpCVk01aFYreFBzUkRFdlJERnZKRXA0ZXMwbjhJRDcvOW4reEZFNlZJSFpybgpnUUUrYXA0Vm13Qk8xa3d4K2RhZGNvSlNIdUhyU2FXUGpFRUZ0R0RNNmROTzIxTWdNMlZzeDNxSFdpd2NkbFVzCjI3Ym9HMGhyTlp4d2g2UjdHWmJSNDEwcWN1aXQ5TUw1R1ZSQ0QwaFNpd2lFNDJyb09aRkV1ck9KY2x0K3lGVy8KQW9wV3FtYkkvYmxjZ3VEdk5pT21LRTdCNFkycU9sSC9ma0hZbXN1aDAwOFVRT1ZUcXpYbUFtaTlqNzNiejlmeQpuN1RvS3FabUErYTdkS0pYUTdlNXM2b0VHeDc3Wlc0MzZ4SjF4MTg2MkJVVVgxNGdLOWoyTzVzU0RsTzBadTA5CkdiRUFIZlFUb3EyOTBIUENFeTBydWMwQ0F3RUFBUT09Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQ==";
 
     #[test]
     fn eventually_encrypt_result_returns_encrypted_path_when_encryption_enabled_and_key_valid() {
@@ -1026,7 +1014,7 @@ FQIDAQAB
                 ),
                 (
                     TeeSessionEnvironmentVariable::ResultEncryptionPublicKey.name(),
-                    Some(get_base64_encoded_valid_rsa_key().as_str()),
+                    Some(TEST_RSA_PUBLIC_KEY_PEM),
                 ),
             ],
             || {
@@ -1081,9 +1069,10 @@ FQIDAQAB
             )],
             || {
                 let result = Web2ResultService.eventually_encrypt_result(file_path);
-                assert!(result.is_err());
-                let err = result.unwrap_err();
-                assert_eq!(err, ReplicateStatusCause::PostComputeFailedUnknownIssue);
+                assert_eq!(
+                    result,
+                    Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
+                );
             },
         );
     }
@@ -1103,10 +1092,9 @@ FQIDAQAB
                 )],
                 || {
                     let result = Web2ResultService.eventually_encrypt_result(file_path);
-                    assert!(result.is_err(), "Should fail for value: {}", invalid_value);
                     assert_eq!(
-                        result.unwrap_err(),
-                        ReplicateStatusCause::PostComputeFailedUnknownIssue
+                        result,
+                        Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
                     );
                 },
             );
@@ -1134,16 +1122,9 @@ FQIDAQAB
                 ],
                 || {
                     let result = Web2ResultService.eventually_encrypt_result(file_path);
-                    assert!(
-                        result.is_err(),
-                        "Should fail due to missing public key for value: {}",
-                        true_value
-                    );
                     assert_eq!(
-                        result.unwrap_err(),
-                        ReplicateStatusCause::PostComputeEncryptionPublicKeyMissing,
-                        "Should fail with missing public key error for value: {}",
-                        true_value
+                        result,
+                        Err(ReplicateStatusCause::PostComputeEncryptionPublicKeyMissing)
                     );
                 },
             );
@@ -1193,11 +1174,9 @@ FQIDAQAB
             ],
             || {
                 let result = Web2ResultService.eventually_encrypt_result(file_path);
-                assert!(result.is_err());
-                let err = result.unwrap_err();
                 assert_eq!(
-                    err,
-                    ReplicateStatusCause::PostComputeEncryptionPublicKeyMissing
+                    result,
+                    Err(ReplicateStatusCause::PostComputeEncryptionPublicKeyMissing)
                 );
             },
         );
@@ -1221,11 +1200,9 @@ FQIDAQAB
             ],
             || {
                 let result = Web2ResultService.eventually_encrypt_result(file_path);
-                assert!(result.is_err());
-                let err = result.unwrap_err();
                 assert_eq!(
-                    err,
-                    ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey
+                    result,
+                    Err(ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey)
                 );
             },
         );
@@ -1251,11 +1228,9 @@ FQIDAQAB
             ],
             || {
                 let result = Web2ResultService.eventually_encrypt_result(file_path);
-                assert!(result.is_err());
-                let err = result.unwrap_err();
                 assert_eq!(
-                    err,
-                    ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey
+                    result,
+                    Err(ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey)
                 );
             },
         );
@@ -1301,14 +1276,15 @@ FQIDAQAB
                 ),
                 (
                     TeeSessionEnvironmentVariable::ResultEncryptionPublicKey.name(),
-                    Some(get_base64_encoded_valid_rsa_key().as_str()),
+                    Some(TEST_RSA_PUBLIC_KEY_PEM),
                 ),
             ],
             || {
                 let result = Web2ResultService.eventually_encrypt_result(file_path);
-                assert!(result.is_err());
-                let err = result.unwrap_err();
-                assert_eq!(err, ReplicateStatusCause::PostComputeEncryptionFailed);
+                assert_eq!(
+                    result,
+                    Err(ReplicateStatusCause::PostComputeEncryptionFailed)
+                );
             },
         );
     }
@@ -1330,7 +1306,7 @@ FQIDAQAB
                 ),
                 (
                     TeeSessionEnvironmentVariable::ResultEncryptionPublicKey.name(),
-                    Some(get_base64_encoded_valid_rsa_key().as_str()),
+                    Some(TEST_RSA_PUBLIC_KEY_PEM),
                 ),
             ],
             || {
@@ -1476,8 +1452,7 @@ FQIDAQAB
             let file_path = "fileToUpload.zip";
 
             let result = Web2ResultService.upload_result(&computed_file, file_path);
-            assert!(result.is_err());
-            assert_eq!(result.unwrap_err(), expected_error);
+            assert_eq!(result, Err(expected_error));
         });
     }
 
@@ -1564,10 +1539,9 @@ FQIDAQAB
             token,
             non_existent_file,
         );
-        assert!(result.is_err());
         assert_eq!(
-            result.unwrap_err(),
-            ReplicateStatusCause::PostComputeResultFileNotFound
+            result,
+            Err(ReplicateStatusCause::PostComputeResultFileNotFound)
         );
     }
 
@@ -1590,10 +1564,9 @@ FQIDAQAB
 
         let result =
             actually_upload_to_ipfs_with_iexec_proxy(computed_file, mock_server, file_path).await;
-        assert!(result.is_err());
         assert_eq!(
-            result.unwrap_err(),
-            ReplicateStatusCause::PostComputeIpfsUploadFailed
+            result,
+            Err(ReplicateStatusCause::PostComputeIpfsUploadFailed)
         );
     }
     // endregion
