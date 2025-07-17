@@ -394,7 +394,7 @@ impl Web2ResultInterface for Web2ResultService {
             TeeSessionEnvironmentVariable::ResultEncryption,
             ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO: Update this error cause to a more specific one
         ) {
-            Ok(value) => match value.parse::<bool>() {
+            Ok(value) => match value.to_lowercase().parse::<bool>() {
                 Ok(parsed_value) => parsed_value,
                 Err(e) => {
                     error!(
@@ -1093,7 +1093,7 @@ FQIDAQAB
         let test_file = create_temp_file_with_text("test content");
         let file_path = test_file.path().to_str().unwrap();
 
-        let invalid_values = ["invalid", "yes", "no", "1", "0", "True", "False", ""];
+        let invalid_values = ["invalid", "yes", "no", "maybe", "2", "-1", "1", "0", ""];
 
         for invalid_value in invalid_values {
             with_vars(
@@ -1107,6 +1107,68 @@ FQIDAQAB
                     assert_eq!(
                         result.unwrap_err(),
                         ReplicateStatusCause::PostComputeFailedUnknownIssue
+                    );
+                },
+            );
+        }
+    }
+
+    #[test]
+    fn eventually_encrypt_result_handles_case_insensitive_boolean_values_when_parsing() {
+        let test_file = create_temp_file_with_text("test content");
+        let file_path = test_file.path().to_str().unwrap();
+
+        // Test case-insensitive true values
+        let true_values = ["true", "True", "TRUE"];
+        for true_value in true_values {
+            with_vars(
+                vec![
+                    (
+                        TeeSessionEnvironmentVariable::ResultEncryption.name(),
+                        Some(true_value),
+                    ),
+                    (
+                        TeeSessionEnvironmentVariable::ResultEncryptionPublicKey.name(),
+                        None::<&str>,
+                    ),
+                ],
+                || {
+                    let result = Web2ResultService.eventually_encrypt_result(file_path);
+                    assert!(
+                        result.is_err(),
+                        "Should fail due to missing public key for value: {}",
+                        true_value
+                    );
+                    assert_eq!(
+                        result.unwrap_err(),
+                        ReplicateStatusCause::PostComputeEncryptionPublicKeyMissing,
+                        "Should fail with missing public key error for value: {}",
+                        true_value
+                    );
+                },
+            );
+        }
+
+        // Test case-insensitive false values
+        let false_values = ["false", "False", "FALSE"];
+        for false_value in false_values {
+            with_vars(
+                vec![(
+                    TeeSessionEnvironmentVariable::ResultEncryption.name(),
+                    Some(false_value),
+                )],
+                || {
+                    let result = Web2ResultService.eventually_encrypt_result(file_path);
+                    assert!(
+                        result.is_ok(),
+                        "Should succeed when encryption disabled for value: {}",
+                        false_value
+                    );
+                    assert_eq!(
+                        result.unwrap(),
+                        file_path,
+                        "Should return original path for value: {}",
+                        false_value
                     );
                 },
             );

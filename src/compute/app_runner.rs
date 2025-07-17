@@ -50,7 +50,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
             TeeSessionEnvironmentVariable::ResultStorageCallback,
             ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO: Update this error cause to a more specific one
         ) {
-            Ok(value) => match value.parse::<bool>() {
+            Ok(value) => match value.to_lowercase().parse::<bool>() {
                 Ok(parsed_value) => parsed_value,
                 Err(_) => {
                     error!(
