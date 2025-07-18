@@ -4,7 +4,7 @@ use crate::compute::{
         ComputedFile, build_result_digest_in_computed_file, read_computed_file, sign_computed_file,
     },
     errors::ReplicateStatusCause,
-    signer::get_challenge,
+    signer::{SignerOperations, SignerService},
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
     web2_result::{Web2ResultInterface, Web2ResultService},
 };
@@ -83,7 +83,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
     }
 
     fn get_challenge(&self, chain_task_id: &str) -> Result<String, ReplicateStatusCause> {
-        get_challenge(chain_task_id)
+        SignerService.get_challenge(chain_task_id)
     }
 
     fn send_exit_cause(
