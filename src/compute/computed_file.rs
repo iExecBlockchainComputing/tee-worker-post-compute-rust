@@ -8,6 +8,8 @@ use crate::compute::{
     },
 };
 use log::{error, info};
+#[cfg(test)]
+use mockall::automock;
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path};
 
@@ -41,258 +43,285 @@ pub struct ComputedFile {
     pub error_message: Option<String>,
 }
 
-/// Reads and parses a computed.json file from the specified directory.
-///
-/// This function locates the computed.json file in the given directory, reads its contents,
-/// and deserializes it into a [`ComputedFile`] struct. The task ID is automatically set
-/// in the resulting struct instance.
-///
-/// # Arguments
-///
-/// * `chain_task_id` - The blockchain task identifier to associate with this computed file
-/// * `computed_file_dir` - The directory path where the computed.json file is located
-///
-/// # Returns
-///
-/// * `Ok(ComputedFile)` - Successfully parsed computed file with task ID set
-/// * `Err(ReplicateStatusCause)` - Error if file cannot be read or parsed
-///
-/// # Errors
-///
-/// This function will return an error in the following situations:
-/// * `chain_task_id` is empty (returns `PostComputeComputedFileNotFound`)
-/// * `computed_file_dir` is empty (returns `PostComputeComputedFileNotFound`)
-/// * The computed.json file does not exist in the specified directory (returns `PostComputeComputedFileNotFound`)
-/// * The file cannot be read due to permissions or I/O errors (returns `PostComputeComputedFileNotFound`)
-/// * The JSON content is invalid or cannot be deserialized (returns `PostComputeComputedFileNotFound`)
-///
-/// # Example
-///
-/// ```
-/// use crate::compute::computed_file::read_computed_file;
-///
-/// match read_computed_file("0x123456789abcdef", "/iexec_out") {
-///     Ok(computed_file) => {
-///         println!("Task ID: {:?}", computed_file.task_id);
-///         println!("Output path: {:?}", computed_file.deterministic_output_path);
-///     },
-///     Err(e) => eprintln!("Error reading computed file: {:?}", e),
-/// }
-/// ```
-pub fn read_computed_file(
-    chain_task_id: &str,
-    computed_file_dir: &str,
-) -> Result<ComputedFile, ReplicateStatusCause> {
-    info!("read_computed_file stage started");
-    if chain_task_id.is_empty() {
-        error!(
-            "Failed to read compute file (empty chain_task_id) [chain_task_id:{}, computed_file_dir:{}]",
-            chain_task_id, computed_file_dir
-        );
-        return Err(ReplicateStatusCause::PostComputeComputedFileNotFound);
-    }
+#[cfg_attr(test, automock)]
+pub trait ComputedFileOperations {
+    fn read_computed_file(
+        &self,
+        chain_task_id: &str,
+        iexec_out_path: &str,
+    ) -> Result<ComputedFile, ReplicateStatusCause>;
+    fn build_result_digest_in_computed_file(
+        &self,
+        computed_file: &mut ComputedFile,
+        should_callback: bool,
+    ) -> Result<(), ReplicateStatusCause>;
+    fn sign_computed_file(
+        &self,
+        computed_file: &mut ComputedFile,
+    ) -> Result<(), ReplicateStatusCause>;
+}
 
-    if computed_file_dir.is_empty() {
-        error!(
-            "Failed to read compute file (empty computed_file_dir) [chain_task_id:{}, computed_file_dir:{}]",
-            chain_task_id, computed_file_dir
-        );
-        return Err(ReplicateStatusCause::PostComputeComputedFileNotFound);
-    }
+pub struct ComputedFileService;
 
-    let computed_file_path = Path::new(computed_file_dir).join("computed.json");
-    let json_string = match fs::read_to_string(&computed_file_path) {
-        Ok(content) => content,
-        Err(e) => {
+impl ComputedFileOperations for ComputedFileService {
+    /// Reads and parses a computed.json file from the specified directory.
+    ///
+    /// This function locates the computed.json file in the given directory, reads its contents,
+    /// and deserializes it into a [`ComputedFile`] struct. The task ID is automatically set
+    /// in the resulting struct instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `chain_task_id` - The blockchain task identifier to associate with this computed file
+    /// * `computed_file_dir` - The directory path where the computed.json file is located
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(ComputedFile)` - Successfully parsed computed file with task ID set
+    /// * `Err(ReplicateStatusCause)` - Error if file cannot be read or parsed
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error in the following situations:
+    /// * `chain_task_id` is empty (returns `PostComputeComputedFileNotFound`)
+    /// * `computed_file_dir` is empty (returns `PostComputeComputedFileNotFound`)
+    /// * The computed.json file does not exist in the specified directory (returns `PostComputeComputedFileNotFound`)
+    /// * The file cannot be read due to permissions or I/O errors (returns `PostComputeComputedFileNotFound`)
+    /// * The JSON content is invalid or cannot be deserialized (returns `PostComputeComputedFileNotFound`)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use crate::compute::computed_file::read_computed_file;
+    ///
+    /// match read_computed_file("0x123456789abcdef", "/iexec_out") {
+    ///     Ok(computed_file) => {
+    ///         println!("Task ID: {:?}", computed_file.task_id);
+    ///         println!("Output path: {:?}", computed_file.deterministic_output_path);
+    ///     },
+    ///     Err(e) => eprintln!("Error reading computed file: {:?}", e),
+    /// }
+    /// ```
+    fn read_computed_file(
+        &self,
+        chain_task_id: &str,
+        computed_file_dir: &str,
+    ) -> Result<ComputedFile, ReplicateStatusCause> {
+        info!("read_computed_file stage started");
+        if chain_task_id.is_empty() {
             error!(
-                "Failed to read compute file [chain_task_id:{}, computed_file_dir:{}, error:{}]",
-                chain_task_id, computed_file_dir, e
+                "Failed to read compute file (empty chain_task_id) [chain_task_id:{}, computed_file_dir:{}]",
+                chain_task_id, computed_file_dir
             );
             return Err(ReplicateStatusCause::PostComputeComputedFileNotFound);
         }
-    };
 
-    match serde_json::from_str::<ComputedFile>(&json_string) {
-        Ok(mut computed_file) => {
-            computed_file.task_id = Some(chain_task_id.to_string());
-            info!("read_computed_file stage completed");
-            Ok(computed_file)
-        }
-        Err(_) => {
+        if computed_file_dir.is_empty() {
             error!(
-                "Failed to read compute file [chain_task_id:{}, computed_file_dir:{}]",
+                "Failed to read compute file (empty computed_file_dir) [chain_task_id:{}, computed_file_dir:{}]",
                 chain_task_id, computed_file_dir
             );
-            Err(ReplicateStatusCause::PostComputeComputedFileNotFound)
+            return Err(ReplicateStatusCause::PostComputeComputedFileNotFound);
+        }
+
+        let computed_file_path = Path::new(computed_file_dir).join("computed.json");
+        let json_string = match fs::read_to_string(&computed_file_path) {
+            Ok(content) => content,
+            Err(e) => {
+                error!(
+                    "Failed to read compute file [chain_task_id:{}, computed_file_dir:{}, error:{}]",
+                    chain_task_id, computed_file_dir, e
+                );
+                return Err(ReplicateStatusCause::PostComputeComputedFileNotFound);
+            }
+        };
+
+        match serde_json::from_str::<ComputedFile>(&json_string) {
+            Ok(mut computed_file) => {
+                computed_file.task_id = Some(chain_task_id.to_string());
+                info!("read_computed_file stage completed");
+                Ok(computed_file)
+            }
+            Err(_) => {
+                error!(
+                    "Failed to read compute file [chain_task_id:{}, computed_file_dir:{}]",
+                    chain_task_id, computed_file_dir
+                );
+                Err(ReplicateStatusCause::PostComputeComputedFileNotFound)
+            }
         }
     }
-}
 
-/// Computes and sets the result digest for a computed file based on the task type.
-///
-/// This function determines the appropriate digest computation method based on whether
-/// the task is in callback mode (web3) or standard mode (web2), then computes and
-/// stores the result digest in the provided [`ComputedFile`] instance.
-///
-/// The digest computation follows these rules:
-/// - **Web3 mode** (callback): Uses keccak256 hash of the callback data
-/// - **Web2 mode** (standard): Uses SHA256 hash of the output files/directory
-///
-/// # Arguments
-///
-/// * `computed_file` - A mutable reference to the [`ComputedFile`] instance to update
-/// * `is_callback_mode` - Boolean indicating whether this is a web3 callback task
-///
-/// # Returns
-///
-/// * `Ok(())` - Successfully computed and set the result digest
-/// * `Err(ReplicateStatusCause)` - Error if digest computation failed
-///
-/// # Errors
-///
-/// This function will return an error in the following situations:
-/// * The result digest computation returns an empty string (returns `PostComputeResultDigestComputationFailed`)
-/// * For web3 mode: callback data is missing or empty
-/// * For web2 mode: deterministic output path is missing, empty, or points to non-existent files
-///
-/// # Example
-///
-/// ```
-/// use crate::compute::computed_file::{build_result_digest_in_computed_file, ComputedFile};
-///
-/// let mut computed_file = ComputedFile {
-///     task_id: Some("0x123".to_string()),
-///     callback_data: Some("0xabc...".to_string()),
-///     deterministic_output_path: None,
-///     result_digest: None,
-///     enclave_signature: None,
-///     error_message: None,
-/// };
-///
-/// // For a web3 callback task
-/// match build_result_digest_in_computed_file(&mut computed_file, true) {
-///     Ok(()) => println!("Result digest: {:?}", computed_file.result_digest),
-///     Err(e) => eprintln!("Error computing digest: {:?}", e),
-/// }
-/// ```
-pub fn build_result_digest_in_computed_file(
-    computed_file: &mut ComputedFile,
-    is_callback_mode: bool,
-) -> Result<(), ReplicateStatusCause> {
-    info!(
-        "build_result_digest_in_computed_file stage started [mode:{}]",
-        if is_callback_mode { "web3" } else { "web2" }
-    );
+    /// Computes and sets the result digest for a computed file based on the task type.
+    ///
+    /// This function determines the appropriate digest computation method based on whether
+    /// the task is in callback mode (web3) or standard mode (web2), then computes and
+    /// stores the result digest in the provided [`ComputedFile`] instance.
+    ///
+    /// The digest computation follows these rules:
+    /// - **Web3 mode** (callback): Uses keccak256 hash of the callback data
+    /// - **Web2 mode** (standard): Uses SHA256 hash of the output files/directory
+    ///
+    /// # Arguments
+    ///
+    /// * `computed_file` - A mutable reference to the [`ComputedFile`] instance to update
+    /// * `is_callback_mode` - Boolean indicating whether this is a web3 callback task
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Successfully computed and set the result digest
+    /// * `Err(ReplicateStatusCause)` - Error if digest computation failed
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error in the following situations:
+    /// * The result digest computation returns an empty string (returns `PostComputeResultDigestComputationFailed`)
+    /// * For web3 mode: callback data is missing or empty
+    /// * For web2 mode: deterministic output path is missing, empty, or points to non-existent files
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use crate::compute::computed_file::{build_result_digest_in_computed_file, ComputedFile};
+    ///
+    /// let mut computed_file = ComputedFile {
+    ///     task_id: Some("0x123".to_string()),
+    ///     callback_data: Some("0xabc...".to_string()),
+    ///     deterministic_output_path: None,
+    ///     result_digest: None,
+    ///     enclave_signature: None,
+    ///     error_message: None,
+    /// };
+    ///
+    /// // For a web3 callback task
+    /// match build_result_digest_in_computed_file(&mut computed_file, true) {
+    ///     Ok(()) => println!("Result digest: {:?}", computed_file.result_digest),
+    ///     Err(e) => eprintln!("Error computing digest: {:?}", e),
+    /// }
+    /// ```
+    fn build_result_digest_in_computed_file(
+        &self,
+        computed_file: &mut ComputedFile,
+        is_callback_mode: bool,
+    ) -> Result<(), ReplicateStatusCause> {
+        info!(
+            "build_result_digest_in_computed_file stage started [mode:{}]",
+            if is_callback_mode { "web3" } else { "web2" }
+        );
 
-    let result_digest = if is_callback_mode {
-        compute_web3_result_digest(computed_file)
-    } else {
-        compute_web2_result_digest(computed_file)
-    };
+        let result_digest = if is_callback_mode {
+            compute_web3_result_digest(computed_file)
+        } else {
+            compute_web2_result_digest(computed_file)
+        };
 
-    if result_digest.is_empty() {
-        return Err(ReplicateStatusCause::PostComputeResultDigestComputationFailed);
+        if result_digest.is_empty() {
+            return Err(ReplicateStatusCause::PostComputeResultDigestComputationFailed);
+        }
+
+        computed_file.result_digest = Some(result_digest.to_string());
+        Ok(())
     }
 
-    computed_file.result_digest = Some(result_digest.to_string());
-    Ok(())
-}
+    /// Signs the computed file with the enclave signature.
+    ///
+    /// This function generates a cryptographic signature for the computed file to ensure
+    /// its integrity and authenticity. The signature is created by:
+    /// 1. Computing a result hash from the task ID and result digest
+    /// 2. Computing a result seal from the worker address, task ID, and result digest
+    /// 3. Combining these to create a message hash
+    /// 4. Signing the message hash with the TEE challenge private key
+    ///
+    /// The generated signature is stored in the `enclave_signature` field of the computed file.
+    ///
+    /// # Arguments
+    ///
+    /// * `computed_file` - A mutable reference to the [`ComputedFile`] to be signed
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Successfully generated and stored the enclave signature
+    /// * `Err(ReplicateStatusCause)` - Error if signing failed due to:
+    ///   - Missing worker address environment variable
+    ///   - Missing TEE challenge private key environment variable
+    ///   - Invalid private key format
+    ///   - Signing operation failure
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if:
+    /// * `computed_file.task_id` is `None`
+    /// * `computed_file.result_digest` is `None`
+    ///
+    /// # Environment Variables
+    ///
+    /// Required environment variables:
+    /// * `SIGN_WORKER_ADDRESS` - The worker's address used in the result seal computation
+    /// * `SIGN_TEE_CHALLENGE_PRIVATE_KEY` - The private key used for signing
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use crate::compute::computed_file::{sign_computed_file, ComputedFile};
+    ///
+    /// // Assuming environment variables are set:
+    /// // SIGN_WORKER_ADDRESS=0x1234567890abcdef1234567890abcdef12345678
+    /// // SIGN_TEE_CHALLENGE_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+    ///
+    /// let mut computed_file = ComputedFile {
+    ///     task_id: Some("0x123456789abcdef".to_string()),
+    ///     result_digest: Some("0xcb371be217faa47dab94e0d0ff0840c6cbf41645f0dc1a6ae3f34447155a76f3".to_string()),
+    ///     ..Default::default()
+    /// };
+    ///
+    /// match sign_computed_file(&mut computed_file) {
+    ///     Ok(()) => {
+    ///         println!("Signature: {:?}", computed_file.enclave_signature);
+    ///         assert!(computed_file.enclave_signature.is_some());
+    ///     },
+    ///     Err(e) => eprintln!("Signing failed: {:?}", e),
+    /// }
+    /// ```
+    ///
+    /// # Security Considerations
+    ///
+    /// The enclave signature provides cryptographic proof that the computation was performed
+    /// by an authorized TEE enclave. The signature includes the worker address to prevent
+    /// replay attacks and ensure the result is bound to a specific worker.
+    fn sign_computed_file(
+        &self,
+        computed_file: &mut ComputedFile,
+    ) -> Result<(), ReplicateStatusCause> {
+        info!("Signer stage started");
+        let task_id = computed_file
+            .task_id
+            .as_ref()
+            .ok_or(ReplicateStatusCause::PostComputeTaskIdMissing)?;
+        let result_digest = computed_file
+            .result_digest
+            .as_ref()
+            .ok_or(ReplicateStatusCause::PostComputeResultDigestComputationFailed)?;
 
-/// Signs the computed file with the enclave signature.
-///
-/// This function generates a cryptographic signature for the computed file to ensure
-/// its integrity and authenticity. The signature is created by:
-/// 1. Computing a result hash from the task ID and result digest
-/// 2. Computing a result seal from the worker address, task ID, and result digest
-/// 3. Combining these to create a message hash
-/// 4. Signing the message hash with the TEE challenge private key
-///
-/// The generated signature is stored in the `enclave_signature` field of the computed file.
-///
-/// # Arguments
-///
-/// * `computed_file` - A mutable reference to the [`ComputedFile`] to be signed
-///
-/// # Returns
-///
-/// * `Ok(())` - Successfully generated and stored the enclave signature
-/// * `Err(ReplicateStatusCause)` - Error if signing failed due to:
-///   - Missing worker address environment variable
-///   - Missing TEE challenge private key environment variable
-///   - Invalid private key format
-///   - Signing operation failure
-///
-/// # Panics
-///
-/// This function will panic if:
-/// * `computed_file.task_id` is `None`
-/// * `computed_file.result_digest` is `None`
-///
-/// # Environment Variables
-///
-/// Required environment variables:
-/// * `SIGN_WORKER_ADDRESS` - The worker's address used in the result seal computation
-/// * `SIGN_TEE_CHALLENGE_PRIVATE_KEY` - The private key used for signing
-///
-/// # Example
-///
-/// ```
-/// use crate::compute::computed_file::{sign_computed_file, ComputedFile};
-///
-/// // Assuming environment variables are set:
-/// // SIGN_WORKER_ADDRESS=0x1234567890abcdef1234567890abcdef12345678
-/// // SIGN_TEE_CHALLENGE_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-///
-/// let mut computed_file = ComputedFile {
-///     task_id: Some("0x123456789abcdef".to_string()),
-///     result_digest: Some("0xcb371be217faa47dab94e0d0ff0840c6cbf41645f0dc1a6ae3f34447155a76f3".to_string()),
-///     ..Default::default()
-/// };
-///
-/// match sign_computed_file(&mut computed_file) {
-///     Ok(()) => {
-///         println!("Signature: {:?}", computed_file.enclave_signature);
-///         assert!(computed_file.enclave_signature.is_some());
-///     },
-///     Err(e) => eprintln!("Signing failed: {:?}", e),
-/// }
-/// ```
-///
-/// # Security Considerations
-///
-/// The enclave signature provides cryptographic proof that the computation was performed
-/// by an authorized TEE enclave. The signature includes the worker address to prevent
-/// replay attacks and ensure the result is bound to a specific worker.
-pub fn sign_computed_file(computed_file: &mut ComputedFile) -> Result<(), ReplicateStatusCause> {
-    info!("Signer stage started");
-    let task_id = computed_file
-        .task_id
-        .as_ref()
-        .ok_or(ReplicateStatusCause::PostComputeTaskIdMissing)?;
-    let result_digest = computed_file
-        .result_digest
-        .as_ref()
-        .ok_or(ReplicateStatusCause::PostComputeResultDigestComputationFailed)?;
+        let worker_address: String = get_env_var_or_error(
+            TeeSessionEnvironmentVariable::SignWorkerAddress,
+            ReplicateStatusCause::PostComputeWorkerAddressMissing,
+        )?;
 
-    let worker_address: String = get_env_var_or_error(
-        TeeSessionEnvironmentVariable::SignWorkerAddress,
-        ReplicateStatusCause::PostComputeWorkerAddressMissing,
-    )?;
+        let result_hash = concatenate_and_hash(&[task_id, result_digest]);
+        let result_seal = concatenate_and_hash(&[&worker_address, task_id, result_digest]);
+        let message_hash = concatenate_and_hash(&[&result_hash, &result_seal]);
 
-    let result_hash = concatenate_and_hash(&[task_id, result_digest]);
-    let result_seal = concatenate_and_hash(&[&worker_address, task_id, result_digest]);
-    let message_hash = concatenate_and_hash(&[&result_hash, &result_seal]);
+        let tee_challenge_private_key: String = get_env_var_or_error(
+            TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey,
+            ReplicateStatusCause::PostComputeTeeChallengePrivateKeyMissing,
+        )?;
 
-    let tee_challenge_private_key: String = get_env_var_or_error(
-        TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey,
-        ReplicateStatusCause::PostComputeTeeChallengePrivateKeyMissing,
-    )?;
+        let enclave_signature = sign_enclave_challenge(&message_hash, &tee_challenge_private_key)?;
 
-    let enclave_signature = sign_enclave_challenge(&message_hash, &tee_challenge_private_key)?;
-
-    computed_file.enclave_signature = Some(enclave_signature);
-    info!("Signer stage completed");
-    Ok(())
+        computed_file.enclave_signature = Some(enclave_signature);
+        info!("Signer stage completed");
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -339,7 +368,7 @@ mod tests {
         let mut file = fs::File::create(&file_path).unwrap();
         file.write_all(test_json.as_bytes()).unwrap();
 
-        let result = read_computed_file(TEST_TASK_ID, dir_path);
+        let result = ComputedFileService.read_computed_file(TEST_TASK_ID, dir_path);
         assert!(result.is_ok());
 
         let computed_file = result.unwrap();
@@ -353,7 +382,7 @@ mod tests {
 
     #[test]
     fn read_computed_file_returns_error_when_chain_task_id_is_empty() {
-        let result = read_computed_file("", "/tmp");
+        let result = ComputedFileService.read_computed_file("", "/tmp");
 
         assert!(result.is_err());
         assert_eq!(
@@ -364,7 +393,7 @@ mod tests {
 
     #[test]
     fn read_computed_file_returns_error_when_computed_file_dir_is_empty() {
-        let result = read_computed_file(TEST_TASK_ID, "");
+        let result = ComputedFileService.read_computed_file(TEST_TASK_ID, "");
 
         assert!(result.is_err());
         assert_eq!(
@@ -378,7 +407,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let dir_path = dir.path().to_str().unwrap();
 
-        let result = read_computed_file(TEST_TASK_ID, dir_path);
+        let result = ComputedFileService.read_computed_file(TEST_TASK_ID, dir_path);
 
         assert!(result.is_err());
         assert_eq!(
@@ -396,7 +425,8 @@ mod tests {
         let mut file = fs::File::create(&file_path).unwrap();
         file.write_all(test_json.as_bytes()).unwrap();
 
-        let result = read_computed_file(TEST_TASK_ID, dir.path().to_str().unwrap());
+        let result =
+            ComputedFileService.read_computed_file(TEST_TASK_ID, dir.path().to_str().unwrap());
 
         assert!(result.is_err());
         assert_eq!(
@@ -414,7 +444,8 @@ mod tests {
         let mut file = fs::File::create(&file_path).unwrap();
         file.write_all(test_json.as_bytes()).unwrap();
 
-        let result = read_computed_file(TEST_TASK_ID, dir.path().to_str().unwrap());
+        let result =
+            ComputedFileService.read_computed_file(TEST_TASK_ID, dir.path().to_str().unwrap());
 
         assert!(result.is_err());
         assert_eq!(
@@ -435,7 +466,8 @@ mod tests {
             ..Default::default()
         };
 
-        let result = build_result_digest_in_computed_file(&mut computed_file, true);
+        let result =
+            ComputedFileService.build_result_digest_in_computed_file(&mut computed_file, true);
 
         assert!(result.is_ok());
         assert_eq!(
@@ -460,7 +492,8 @@ mod tests {
             ..Default::default()
         };
 
-        let result = build_result_digest_in_computed_file(&mut computed_file, false);
+        let result =
+            ComputedFileService.build_result_digest_in_computed_file(&mut computed_file, false);
 
         assert!(result.is_ok());
         assert!(computed_file.result_digest.is_some());
@@ -474,7 +507,8 @@ mod tests {
             ..Default::default()
         };
 
-        let result = build_result_digest_in_computed_file(&mut computed_file, false);
+        let result =
+            ComputedFileService.build_result_digest_in_computed_file(&mut computed_file, false);
 
         assert!(result.is_err());
         assert_eq!(
@@ -531,7 +565,7 @@ mod tests {
                     None,
                     None,
                 );
-                let result = sign_computed_file(&mut computed_file);
+                let result = ComputedFileService.sign_computed_file(&mut computed_file);
                 assert!(result.is_ok(), "Signing should be successful");
                 assert!(
                     computed_file.enclave_signature.is_some(),
@@ -561,7 +595,7 @@ mod tests {
                     None,
                     None,
                 );
-                let result = sign_computed_file(&mut computed_file);
+                let result = ComputedFileService.sign_computed_file(&mut computed_file);
                 assert!(
                     matches!(
                         result,
@@ -589,7 +623,7 @@ mod tests {
                     None,
                     None,
                 );
-                let result = sign_computed_file(&mut computed_file);
+                let result = ComputedFileService.sign_computed_file(&mut computed_file);
                 assert!(
                     matches!(
                         result,
@@ -617,7 +651,7 @@ mod tests {
             || {
                 let mut computed_file =
                     make_computed_file(None, None, None, Some(TEST_RESULT_DIGEST), None, None);
-                let result = sign_computed_file(&mut computed_file);
+                let result = ComputedFileService.sign_computed_file(&mut computed_file);
                 assert!(result.is_err(), "Should fail when task_id is None");
             },
         );
@@ -639,7 +673,7 @@ mod tests {
             || {
                 let mut computed_file =
                     make_computed_file(Some(TEST_TASK_ID), None, None, None, None, None);
-                let result = sign_computed_file(&mut computed_file);
+                let result = ComputedFileService.sign_computed_file(&mut computed_file);
                 assert!(result.is_err(), "Should fail when result_digest is None");
             },
         );
@@ -667,7 +701,7 @@ mod tests {
                     None,
                     None,
                 );
-                let result1 = sign_computed_file(&mut computed_file1);
+                let result1 = ComputedFileService.sign_computed_file(&mut computed_file1);
 
                 let mut computed_file2 = make_computed_file(
                     Some(TEST_TASK_ID),
@@ -677,7 +711,7 @@ mod tests {
                     None,
                     None,
                 );
-                let result2 = sign_computed_file(&mut computed_file2);
+                let result2 = ComputedFileService.sign_computed_file(&mut computed_file2);
 
                 assert!(result1.is_ok() && result2.is_ok());
                 assert_eq!(

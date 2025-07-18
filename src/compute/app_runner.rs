@@ -1,8 +1,6 @@
 use crate::api::worker_api::{ExitMessage, WorkerApiClient};
 use crate::compute::{
-    computed_file::{
-        ComputedFile, build_result_digest_in_computed_file, read_computed_file, sign_computed_file,
-    },
+    computed_file::{ComputedFile, ComputedFileOperations, ComputedFileService},
     errors::ReplicateStatusCause,
     signer::get_challenge,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
@@ -67,9 +65,13 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
             }
         };
 
-        let mut computed_file = read_computed_file(chain_task_id, "/iexec_out")?;
-        build_result_digest_in_computed_file(&mut computed_file, should_callback)?;
-        sign_computed_file(&mut computed_file).map_err(Box::new)?;
+        let mut computed_file =
+            ComputedFileService.read_computed_file(chain_task_id, "/iexec_out")?;
+        ComputedFileService
+            .build_result_digest_in_computed_file(&mut computed_file, should_callback)?;
+        ComputedFileService
+            .sign_computed_file(&mut computed_file)
+            .map_err(Box::new)?;
 
         if !should_callback {
             Web2ResultService
