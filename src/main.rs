@@ -1,3 +1,4 @@
+use crate::compute::app_runner::{PostComputeRunner, PostComputeService};
 use env_logger::{Builder, Env, Target};
 use std::process;
 
@@ -8,5 +9,5 @@ fn main() {
     Builder::from_env(Env::default().default_filter_or("info"))
         .target(Target::Stdout)
         .init();
-    process::exit(compute::app_runner::start());
+    process::exit(PostComputeRunner::start());
 }

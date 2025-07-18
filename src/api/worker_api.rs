@@ -4,8 +4,27 @@ use crate::compute::{
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
 };
 use log::error;
+#[cfg(test)]
+use mockall::automock;
 use reqwest::{blocking::Client, header::AUTHORIZATION};
 use serde::Serialize;
+
+#[cfg_attr(test, automock)]
+pub trait WorkerApiInterface {
+    fn send_computed_file_to_host(
+        &self,
+        authorization: &str,
+        task_id: &str,
+        computed_file: &ComputedFile,
+    ) -> Result<(), ReplicateStatusCause>;
+
+    fn send_exit_cause_for_post_compute_stage(
+        &self,
+        authorization: &str,
+        task_id: &str,
+        exit_cause: &ReplicateStatusCause,
+    ) -> Result<(), ReplicateStatusCause>;
+}
 
 /// Represents payload that can be sent to the worker API to report the outcome of the
 /// post‑compute stage.
@@ -93,7 +112,10 @@ impl WorkerApiClient {
         let base_url = format!("http://{}", &worker_host);
         Self::new(&base_url)
     }
+}
 
+// Implement the WorkerApiInterface trait for WorkerApiClient
+impl WorkerApiInterface for WorkerApiClient {
     /// Sends an exit cause for a post-compute operation to the Worker API.
     ///
     /// This method reports the exit cause of a post-compute operation to the Worker API,
@@ -133,18 +155,19 @@ impl WorkerApiClient {
     ///     Err(error) => eprintln!("Failed to report exit cause: {}", error),
     /// }
     /// ```
-    pub fn send_exit_cause_for_post_compute_stage(
+    fn send_exit_cause_for_post_compute_stage(
         &self,
         authorization: &str,
         chain_task_id: &str,
-        exit_cause: &ExitMessage,
+        exit_cause: &ReplicateStatusCause,
     ) -> Result<(), ReplicateStatusCause> {
         let url = format!("{}/compute/post/{}/exit", self.base_url, chain_task_id);
+        let exit_message = ExitMessage::from(exit_cause);
         match self
             .client
             .post(&url)
             .header(AUTHORIZATION, authorization)
-            .json(exit_cause)
+            .json(&exit_message)
             .send()
         {
             Ok(response) => {
@@ -207,7 +230,7 @@ impl WorkerApiClient {
     ///     Err(error) => eprintln!("Failed to send computed file: {}", error),
     /// }
     /// ```
-    pub fn send_computed_file_to_host(
+    fn send_computed_file_to_host(
         &self,
         authorization: &str,
         chain_task_id: &str,
@@ -333,13 +356,11 @@ mod tests {
             .await;
 
         let result = tokio::task::spawn_blocking(move || {
-            let exit_message =
-                ExitMessage::from(&ReplicateStatusCause::PostComputeInvalidTeeSignature);
             let worker_api_client = WorkerApiClient::new(&server_url);
             worker_api_client.send_exit_cause_for_post_compute_stage(
                 CHALLENGE,
                 CHAIN_TASK_ID,
-                &exit_message,
+                &ReplicateStatusCause::PostComputeInvalidTeeSignature,
             )
         })
         .await
@@ -366,13 +387,11 @@ mod tests {
             .await;
 
         let result = tokio::task::spawn_blocking(move || {
-            let exit_message =
-                ExitMessage::from(&ReplicateStatusCause::PostComputeFailedUnknownIssue);
             let worker_api_client = WorkerApiClient::new(&server_url);
             worker_api_client.send_exit_cause_for_post_compute_stage(
                 CHALLENGE,
                 CHAIN_TASK_ID,
-                &exit_message,
+                &ReplicateStatusCause::PostComputeFailedUnknownIssue,
             )
         })
         .await
