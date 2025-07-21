@@ -7,7 +7,6 @@ use crate::compute::{
     web2_result::{Web2ResultInterface, Web2ResultService},
 };
 use log::{error, info};
-use std::error::Error;
 
 /// Defines the interface for post-compute operations.
 ///
@@ -33,24 +32,24 @@ impl PostComputeRunner {
         }
     }
 
-    pub fn run_post_compute(&self, chain_task_id: &str) -> Result<(), Box<dyn Error>> {
+    pub fn run_post_compute(&self, chain_task_id: &str) -> Result<(), ReplicateStatusCause> {
         let should_callback: bool = match get_env_var_or_error(
             TeeSessionEnvironmentVariable::ResultStorageCallback,
             ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO: Update this error cause to a more specific one
         ) {
-            Ok(value) => match value.parse::<bool>() {
+            Ok(value) => match value.to_lowercase().parse::<bool>() {
                 Ok(parsed_value) => parsed_value,
-                Err(e) => {
+                Err(_) => {
                     error!(
                         "Failed to parse RESULT_STORAGE_CALLBACK environment variable as a boolean [callback_env_var:{}]",
                         value
                     );
-                    return Err(Box::new(e));
+                    return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
                 }
             },
             Err(e) => {
                 error!("Failed to get RESULT_STORAGE_CALLBACK environment variable");
-                return Err(Box::new(e));
+                return Err(e);
             }
         };
 
@@ -63,15 +62,16 @@ impl PostComputeRunner {
             .build_result_digest_in_computed_file(&mut computed_file, should_callback)?;
         computed_file_service
             .sign_computed_file(&mut computed_file)
-            .map_err(Box::new)?;
+            .map_err(|_| ReplicateStatusCause::PostComputeInvalidTeeSignature)?;
 
         if !should_callback {
             web2_result_service
                 .encrypt_and_upload_result(&computed_file)
-                .map_err(Box::new)?;
+                .map_err(|_| ReplicateStatusCause::PostComputeFailedUnknownIssue)?;
         }
 
-        self.send_computed_file(&computed_file).map_err(Box::new)?;
+        self.send_computed_file(&computed_file)?;
+
         Ok(())
     }
 
@@ -158,17 +158,17 @@ impl PostComputeService for PostComputeRunner {
                 0
             }
             Err(error) => {
-                let exit_cause: &ReplicateStatusCause;
-                match error.downcast_ref::<ReplicateStatusCause>() {
-                    Some(post_compute_error) => {
-                        exit_cause = post_compute_error;
+                let exit_cause: ReplicateStatusCause;
+                match error {
+                    ReplicateStatusCause::PostComputeFailedUnknownIssue => {
+                        exit_cause = error;
                         error!(
                             "TEE post-compute failed with exit cause [errorMessage:{}]",
                             &exit_cause
                         );
                     }
-                    None => {
-                        exit_cause = &ReplicateStatusCause::PostComputeFailedUnknownIssue;
+                    _ => {
+                        exit_cause = error;
                         error!("TEE post-compute failed without explicit exit cause");
                     }
                 }
@@ -190,11 +190,11 @@ impl PostComputeService for PostComputeRunner {
                     .send_exit_cause_for_post_compute_stage(
                         &authorization,
                         &chain_task_id,
-                        exit_cause,
+                        &exit_cause,
                     ) {
                     Ok(()) => 1, // Exit code for reported failure
                     Err(_) => {
-                        error!("Failed to report exit cause [exitCause:{}]", &exit_cause);
+                        error!("Failed to report exit cause [exitCause:{}]", exit_cause);
                         2 // Exit code for unreported failure
                     }
                 }
@@ -237,7 +237,7 @@ mod tests {
             chain_task_id: &str,
             computed_file_ops: &C,
             web2_result_service: &W,
-        ) -> Result<ComputedFile, Box<dyn Error>>
+        ) -> Result<ComputedFile, ReplicateStatusCause>
         where
             C: ComputedFileOperations,
             W: Web2ResultInterface,
@@ -248,17 +248,17 @@ mod tests {
             ) {
                 Ok(value) => match value.parse::<bool>() {
                     Ok(parsed_value) => parsed_value,
-                    Err(e) => {
+                    Err(_) => {
                         error!(
                             "Failed to parse RESULT_STORAGE_CALLBACK environment variable as a boolean [callback_env_var:{}]",
                             value
                         );
-                        return Err(Box::new(e));
+                        return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
                     }
                 },
-                Err(e) => {
+                Err(_) => {
                     error!("Failed to get RESULT_STORAGE_CALLBACK environment variable");
-                    return Err(Box::new(e));
+                    return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
                 }
             };
 
@@ -268,12 +268,12 @@ mod tests {
                 .build_result_digest_in_computed_file(&mut computed_file, should_callback)?;
             computed_file_ops
                 .sign_computed_file(&mut computed_file)
-                .map_err(Box::new)?;
+                .map_err(|_| ReplicateStatusCause::PostComputeInvalidTeeSignature)?;
 
             if !should_callback {
                 web2_result_service
                     .encrypt_and_upload_result(&computed_file)
-                    .map_err(Box::new)?;
+                    .map_err(|_| ReplicateStatusCause::PostComputeFailedUnknownIssue)?;
             }
 
             Ok(computed_file)
