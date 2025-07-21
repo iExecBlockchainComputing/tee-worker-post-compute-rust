@@ -88,111 +88,93 @@ pub fn encrypt_data(
     produce_zip: bool,
 ) -> Result<String, ReplicateStatusCause> {
     let path = Path::new(in_data_file_path);
-    let in_data_filename = match path.file_name().and_then(|name| name.to_str()) {
-        Some(name) => name,
-        None => {
+    let in_data_filename = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| {
             error!(
                 "Failed to extract filename from path: {}",
                 in_data_file_path
             );
-            return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
-        }
-    };
+            ReplicateStatusCause::PostComputeEncryptionFailed
+        })?;
     let out_encrypted_data_filename = format!("{}.aes", in_data_filename);
 
-    let work_dir = match path.parent().and_then(|p| p.to_str()) {
-        Some(dir) => dir,
-        None => {
-            error!("Failed to get parent directory of: {}", in_data_file_path);
-            return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
-        }
-    };
+    let work_dir = path.parent().and_then(|p| p.to_str()).ok_or_else(|| {
+        error!("Failed to get parent directory of: {}", in_data_file_path);
+        ReplicateStatusCause::PostComputeEncryptionFailed
+    })?;
 
-    let filename_without_ext = match path.file_stem().and_then(|stem| stem.to_str()) {
-        Some(stem) => stem,
-        None => {
-            error!(
-                "Failed to extract filename without extension from '{}'",
-                in_data_file_path
-            );
-            return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
-        }
-    };
+    let filename_without_ext =
+        path.file_stem()
+            .and_then(|stem| stem.to_str())
+            .ok_or_else(|| {
+                error!(
+                    "Failed to extract filename without extension from '{}'",
+                    in_data_file_path
+                );
+                ReplicateStatusCause::PostComputeEncryptionFailed
+            })?;
     let out_enc_dir = format!("{}/{}{}", work_dir, "encrypted-", filename_without_ext); //location of future encrypted files (./encrypted-0x1_result)
 
     // Get data to encrypt
-    let data = match fs::read(in_data_file_path) {
-        Ok(d) => {
-            if d.is_empty() {
-                error!(
-                    "Failed to encrypt_data (empty file error) [in_data_file_path:{}]",
-                    in_data_file_path
-                );
-                return Ok(String::new());
-            } else {
-                d
-            }
-        }
-        Err(e) => {
-            error!(
-                "Failed to encrypt_data (read_file error) [in_data_file_path:{}]: {}",
-                in_data_file_path, e
-            );
-            return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
-        }
-    };
+    let data = fs::read(in_data_file_path).map_err(|e| {
+        error!(
+            "Failed to encrypt_data (read_file error) [in_data_file_path:{}]: {}",
+            in_data_file_path, e
+        );
+        ReplicateStatusCause::PostComputeEncryptionFailed
+    })?;
+    if data.is_empty() {
+        error!(
+            "Failed to encrypt_data (empty file error) [in_data_file_path:{}]",
+            in_data_file_path
+        );
+        return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
+    }
 
     // Generate AES key for data encryption
-    let aes_key = match generate_aes_key() {
-        Ok(key) => key,
-        Err(e) => {
-            error!(
-                "Failed to encrypt_data (generate_aes_key error) [in_data_file_path:{}]: {}",
-                in_data_file_path, e
-            );
-            return Ok(String::new());
-        }
-    };
+    let aes_key = generate_aes_key().map_err(|_| {
+        error!(
+            "Failed to encrypt_data (generate_aes_key error) [in_data_file_path:{}]",
+            in_data_file_path
+        );
+        ReplicateStatusCause::PostComputeEncryptionFailed
+    })?;
 
     // Encrypt data with Base64 AES key
-    let encrypted_data = match aes_encrypt(&data, &aes_key) {
-        Ok(enc) => enc,
-        Err(e) => {
-            error!(
-                "Failed to encrypt_data (aes_encrypt error) [in_data_file_path:{}]: {}",
-                in_data_file_path, e
-            );
-            return Ok(String::new());
-        }
-    };
+    let encrypted_data = aes_encrypt(&data, &aes_key).map_err(|e| {
+        error!(
+            "Failed to encrypt_data (aes_encrypt error) [in_data_file_path:{}]: {}",
+            in_data_file_path, e
+        );
+        ReplicateStatusCause::PostComputeEncryptionFailed
+    })?;
 
     // Create folder for future out_encrypted_data & out_encrypted_aes_key
     let out_enc_dir_path = std::path::Path::new(&out_enc_dir);
-    match out_enc_dir_path.exists() {
-        true => Ok(()),
-        false => fs::create_dir_all(out_enc_dir_path).map_err(|e| {
+    if !out_enc_dir_path.exists() {
+        fs::create_dir_all(out_enc_dir_path).map_err(|e| {
             error!(
                 "Failed to create directory '{}' (is_out_dir_created error) [in_data_file_path:{}]: {}",
                 out_enc_dir, in_data_file_path, e
             );
             ReplicateStatusCause::PostComputeEncryptionFailed
-        }),
-    }?;
+        })?;
+    }
 
     // Store encrypted data in ./0xtask1 [out_enc_dir]
-    match write_file(
+    write_file(
         format!("{}/{}", &out_enc_dir, &out_encrypted_data_filename),
         &encrypted_data,
-    ) {
-        Ok(_) => (),
-        Err(e) => {
-            error!(
-                "Failed to encrypt_data (is_encrypted_data_stored error) [in_data_file_path:{}]: {}",
-                in_data_file_path, e
-            );
-            return Ok(String::new());
-        }
-    };
+    )
+    .map_err(|_| {
+        error!(
+            "Failed to encrypt_data (is_encrypted_data_stored error) [in_data_file_path:{}]",
+            in_data_file_path
+        );
+        ReplicateStatusCause::PostComputeEncryptionFailed
+    })?;
 
     // Encrypt AES key with RSA public key
     let encrypted_aes_key = RsaPublicKey::from_public_key_pem(plain_text_rsa_pub)
@@ -207,45 +189,42 @@ pub fn encrypt_data(
         })?;
 
     // Store encrypted AES key in ./0xtask1 [outEncDir]
-    match write_file(
+    write_file(
         format!("{}/{}", &out_enc_dir, "aes-key.rsa"),
         &encrypted_aes_key,
-    ) {
-        Ok(_) => (),
-        Err(e) => {
-            error!(
-                "Failed to encrypt_data (is_encrypted_aes_key_stored error) [in_data_file_path:{}]: {}",
-                in_data_file_path, e
-            );
-            return Ok(String::new());
-        }
-    };
+    )
+    .map_err(|_| {
+        error!(
+            "Failed to encrypt_data (is_encrypted_aes_key_stored error) [in_data_file_path:{}]",
+            in_data_file_path
+        );
+        ReplicateStatusCause::PostComputeEncryptionFailed
+    })?;
 
     if produce_zip {
         // Zip encrypted files folder
         let parent = out_enc_dir_path.parent().unwrap_or_else(|| Path::new("."));
-        let out_enc_zip =
-            match Web2ResultService.zip_iexec_out(&out_enc_dir, parent.to_str().unwrap()) {
-                Ok(zip) => zip,
-                Err(e) => {
-                    error!(
-                        "Failed to encrypt_data (out_enc_zip error) [in_data_file_path:{}]: {}",
-                        in_data_file_path, e
-                    );
-                    return Ok(String::new());
-                }
-            };
+        let out_enc_zip = Web2ResultService
+            .zip_iexec_out(&out_enc_dir, parent.to_str().unwrap())
+            .map_err(|_| {
+                error!(
+                    "Failed to encrypt_data (out_enc_zip error) [in_data_file_path:{}]",
+                    in_data_file_path
+                );
+                ReplicateStatusCause::PostComputeEncryptionFailed
+            })?;
         if out_enc_zip.is_empty() {
             error!(
                 "Failed to encrypt_data (out_enc_zip error) [in_data_file_path:{}]",
                 in_data_file_path
             );
-            return Ok(String::new());
+            Err(ReplicateStatusCause::PostComputeEncryptionFailed)
+        } else {
+            Ok(out_enc_zip)
         }
-        return Ok(out_enc_zip);
+    } else {
+        Ok(out_enc_dir)
     }
-
-    Ok(out_enc_dir)
 }
 
 /// Generates a cryptographically secure 256-bit AES key.
@@ -636,7 +615,7 @@ FQIDAQAB
     }
 
     #[test]
-    fn encrypt_data_returns_empty_string_when_input_file_is_empty() {
+    fn encrypt_data_returns_error_when_input_file_is_empty() {
         let base_temp = tempdir().expect("Failed to create base temp dir");
         let input_dir = base_temp.path().join("input_empty_file_dir");
         fs::create_dir_all(&input_dir).expect("Failed to create dir for empty file test");
@@ -648,15 +627,9 @@ FQIDAQAB
             TEST_RSA_PUBLIC_KEY_PEM,
             true, // produce_zip doesn't matter here
         );
-        assert!(
-            result.is_ok(),
-            "encrypt_data should return Ok for empty input file. Error: {:?}",
-            result.err()
-        );
         assert_eq!(
-            result.unwrap(),
-            "",
-            "encrypt_data should return an empty string for empty input file."
+            result,
+            Err(ReplicateStatusCause::PostComputeEncryptionFailed)
         );
     }
 
@@ -676,13 +649,9 @@ FQIDAQAB
             invalid_rsa_key,
             true, // produce_zip doesn't matter
         );
-        assert!(
-            result.is_err(),
-            "encrypt_data should return Err for invalid RSA key"
-        );
         assert_eq!(
-            result.unwrap_err(),
-            ReplicateStatusCause::PostComputeEncryptionFailed
+            result,
+            Err(ReplicateStatusCause::PostComputeEncryptionFailed)
         );
     }
 
@@ -696,13 +665,10 @@ FQIDAQAB
             TEST_RSA_PUBLIC_KEY_PEM,
             true,
         );
-        assert!(
-            result.is_err(),
-            "encrypt_data should return Err for non-existent input file."
+        assert_eq!(
+            result,
+            Err(ReplicateStatusCause::PostComputeEncryptionFailed)
         );
-
-        let err = result.err().unwrap();
-        assert_eq!(err, ReplicateStatusCause::PostComputeEncryptionFailed);
     }
 
     #[test]
@@ -736,7 +702,7 @@ FQIDAQAB
     }
 
     #[test]
-    fn encrypt_data_returns_empty_string_when_output_dir_creation_fails() {
+    fn encrypt_data_returns_error_when_output_dir_creation_fails() {
         let temp_dir = tempfile::tempdir().unwrap();
         let input_file_path = temp_dir.path().join("input.txt");
         fs::write(&input_file_path, b"data").unwrap();
@@ -749,20 +715,14 @@ FQIDAQAB
             TEST_RSA_PUBLIC_KEY_PEM,
             false,
         );
-        assert!(
-            result.is_ok(),
-            "encrypt_data should return Ok for directory creation failure. Error: {:?}",
-            result.err()
-        );
         assert_eq!(
-            result.unwrap(),
-            "",
-            "encrypt_data should return an empty string for directory creation failure"
+            result,
+            Err(ReplicateStatusCause::PostComputeEncryptionFailed)
         );
     }
 
     #[test]
-    fn encrypt_data_returns_empty_string_when_zip_fails_due_to_unwritable_destination() {
+    fn encrypt_data_returns_error_when_zip_fails_due_to_unwritable_destination() {
         let temp_dir = tempfile::tempdir().unwrap();
         let input_file_path = temp_dir.path().join("input.txt");
         fs::write(&input_file_path, b"data").unwrap();
@@ -775,15 +735,9 @@ FQIDAQAB
             TEST_RSA_PUBLIC_KEY_PEM,
             true,
         );
-        assert!(
-            result.is_ok(),
-            "encrypt_data should return Ok for zip failure. Error: {:?}",
-            result.err()
-        );
         assert_eq!(
-            result.unwrap(),
-            "",
-            "encrypt_data should return an empty string for zip failure"
+            result,
+            Err(ReplicateStatusCause::PostComputeEncryptionFailed)
         );
     }
     // endregion
@@ -845,8 +799,8 @@ FQIDAQAB
         let encrypted_result = aes_encrypt(data, &key);
         assert!(encrypted_result.is_err());
         assert_eq!(
-            encrypted_result.err().unwrap(),
-            ReplicateStatusCause::PostComputeEncryptionFailed
+            encrypted_result,
+            Err(ReplicateStatusCause::PostComputeEncryptionFailed)
         );
     }
 
@@ -856,10 +810,9 @@ FQIDAQAB
         let wrong_key = vec![0u8; 16]; // 16 bytes instead of 32
 
         let result = aes_encrypt(data, &wrong_key);
-        assert!(result.is_err());
         assert_eq!(
-            result.unwrap_err(),
-            ReplicateStatusCause::PostComputeEncryptionFailed
+            result,
+            Err(ReplicateStatusCause::PostComputeEncryptionFailed)
         );
     }
 
@@ -894,17 +847,15 @@ FQIDAQAB
         let encrypted_result_short = aes_encrypt(data, short_key);
         assert!(encrypted_result_short.is_err());
         assert_eq!(
-            encrypted_result_short.err().unwrap(),
-            ReplicateStatusCause::PostComputeEncryptionFailed,
-            "Should fail for short key"
+            encrypted_result_short,
+            Err(ReplicateStatusCause::PostComputeEncryptionFailed)
         );
 
         let encrypted_result_long = aes_encrypt(data, long_key);
         assert!(encrypted_result_long.is_err());
         assert_eq!(
-            encrypted_result_long.err().unwrap(),
-            ReplicateStatusCause::PostComputeEncryptionFailed,
-            "Should fail for long key"
+            encrypted_result_long,
+            Err(ReplicateStatusCause::PostComputeEncryptionFailed)
         );
     }
     // endregion
@@ -932,8 +883,8 @@ FQIDAQAB
         let result = write_file(invalid_path.to_string(), data);
         assert!(result.is_err());
         assert_eq!(
-            result.unwrap_err(),
-            ReplicateStatusCause::PostComputeEncryptionFailed
+            result,
+            Err(ReplicateStatusCause::PostComputeEncryptionFailed)
         );
     }
 
@@ -1006,34 +957,19 @@ FQIDAQAB
             let _ = fs::remove_file(invalid_path);
             let _ = fs::remove_dir(Path::new(invalid_path).parent().unwrap());
         }
-        assert!(
-            result_nonexistent_parent.is_err(),
-            "write_file should fail for a non-existent parent directory. Path: {}",
-            invalid_path
+        assert_eq!(
+            result_nonexistent_parent,
+            Err(ReplicateStatusCause::PostComputeEncryptionFailed)
         );
-        if let Some(err_cause) = result_nonexistent_parent.err() {
-            assert_eq!(
-                err_cause,
-                ReplicateStatusCause::PostComputeEncryptionFailed,
-                "Error cause mismatch for nonexistent parent."
-            );
-        }
 
         let result_path_is_dir = write_file(
             dir_as_file_path.to_str().unwrap().to_string(),
             data_to_write,
         );
-        assert!(
-            result_path_is_dir.is_err(),
-            "write_file should fail if the path is an existing directory."
+        assert_eq!(
+            result_path_is_dir,
+            Err(ReplicateStatusCause::PostComputeEncryptionFailed)
         );
-        if let Some(err_cause) = result_path_is_dir.err() {
-            assert_eq!(
-                err_cause,
-                ReplicateStatusCause::PostComputeEncryptionFailed,
-                "Error cause mismatch for path being a directory."
-            );
-        }
     }
     // endregion
 }
