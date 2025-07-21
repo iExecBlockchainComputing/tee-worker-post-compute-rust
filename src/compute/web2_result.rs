@@ -441,7 +441,6 @@ impl Web2ResultInterface for Web2ResultService {
             &plain_text_beneficiary_rsa_public_key,
             true,
         ) {
-            Ok(file) if file.is_empty() => Err(ReplicateStatusCause::PostComputeEncryptionFailed),
             Ok(file) => {
                 info!("Encryption stage completed");
                 Ok(file)
