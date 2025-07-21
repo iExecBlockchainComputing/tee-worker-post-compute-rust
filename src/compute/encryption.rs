@@ -4,7 +4,6 @@ use aes::{
     Aes256,
     cipher::{BlockEncryptMut, KeyIvInit, block_padding::Pkcs7},
 };
-use base64::Engine as _;
 use cbc::Encryptor;
 use log::error;
 use rand::{RngCore, rngs::OsRng};
@@ -195,34 +194,22 @@ pub fn encrypt_data(
         }
     };
 
-    // Get RSA public key
-    let rsa_public_key = match base64_to_rsa_public_key(plain_text_rsa_pub) {
-        Ok(pk) => pk,
-        Err(e) => {
-            error!(
-                "Failed to encrypt_data (get_rsa_public_key error) [in_data_file_path:{}]: {}",
-                in_data_file_path, e
-            );
-            return Ok(String::new());
-        }
-    };
-
     // Encrypt AES key with RSA public key
-    let encrypted_aes_key = match rsa_encrypt(&aes_key, &rsa_public_key) {
-        Ok(enc) => enc,
-        Err(e) => {
-            error!(
-                "Failed to encrypt_data (rsa_encrypt error) [in_data_file_path:{}]: {}",
-                in_data_file_path, e
-            );
-            return Ok(String::new());
-        }
-    };
+    let encrypted_aes_key = RsaPublicKey::from_public_key_pem(plain_text_rsa_pub)
+        .map_err(|e| {
+            error!("Failed to parse RSA public key: {}", e);
+            ReplicateStatusCause::PostComputeEncryptionFailed
+        })?
+        .encrypt(&mut OsRng, Pkcs1v15Encrypt, &aes_key)
+        .map_err(|e| {
+            error!("RSA encryption failed: {e}");
+            ReplicateStatusCause::PostComputeEncryptionFailed
+        })?;
 
     // Store encrypted AES key in ./0xtask1 [outEncDir]
     match write_file(
         format!("{}/{}", &out_enc_dir, "aes-key.rsa"),
-        encrypted_aes_key.as_bytes(),
+        &encrypted_aes_key,
     ) {
         Ok(_) => (),
         Err(e) => {
@@ -443,178 +430,9 @@ pub fn write_file(file_path: String, data: &[u8]) -> Result<(), ReplicateStatusC
     Ok(())
 }
 
-/// Parses an RSA public key from PEM or Base64 format.
-///
-/// This function accepts RSA public keys in multiple formats and converts them
-/// to an `RsaPublicKey` object for cryptographic operations. It handles both
-/// PEM-wrapped keys and raw Base64-encoded DER data.
-///
-/// # Supported Formats
-///
-/// 1. **PEM Format** (with headers):
-///    ```text
-///    -----BEGIN PUBLIC KEY-----
-///    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AM...
-///    -----END PUBLIC KEY-----
-///    ```
-///
-/// 2. **Base64 DER** (without headers):
-///    ```text
-///    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AM...
-///    ```
-///
-/// 3. **Base64 with whitespace** (headers removed, formatted):
-///    ```text
-///    MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AM
-///    IIBCgKCAQEAr0mx20CSFczJaM4rtYfL...
-///    ```
-///
-/// # Process
-///
-/// 1. **Header Removal**: Strips PEM headers/footers if present
-/// 2. **Whitespace Cleanup**: Removes newlines, carriage returns, and spaces
-/// 3. **Base64 Decoding**: Converts Base64 string to DER bytes
-/// 4. **DER Parsing**: Parses DER-encoded public key data
-/// 5. **Validation**: Ensures key is valid for RSA operations
-///
-/// # Arguments
-///
-/// * `plain_text_rsa_pub` - RSA public key string in PEM or Base64 format.
-///   Whitespace and formatting are automatically handled.
-///
-/// # Returns
-///
-/// * `Result<RsaPublicKey, ReplicateStatusCause>` - On success, returns a validated
-///   `RsaPublicKey` object ready for encryption operations.
-///
-/// # Key Requirements
-///
-/// - **Algorithm**: Must be RSA (not EC, DSA, or other algorithms)
-/// - **Encoding**: Must be DER-encoded PKCS#8 or PKCS#1 public key
-/// - **Size**: Typically 1024, 2048, 3072, or 4096 bits (2048+ recommended)
-/// - **Validity**: Must contain valid modulus and exponent values
-///
-/// # Errors
-///
-/// * `PostComputeMalformedEncryptionPublicKey` - If:
-///   - Base64 decoding fails (invalid characters)
-///   - DER parsing fails (malformed key structure)
-///   - Key validation fails (invalid RSA parameters)
-///   - Unsupported key format or algorithm
-///
-/// # Security Notes
-///
-/// - Function validates key mathematical properties
-/// - Does not verify key authenticity or trustworthiness
-/// - Accepts keys from any source (implement key validation separately)
-/// - Supports industry-standard formats for maximum compatibility
-///
-/// # Example
-///
-/// ```rust
-/// // PEM format key
-/// let pem_key = "-----BEGIN PUBLIC KEY-----\nMIIB...\n-----END PUBLIC KEY-----";
-/// let rsa_key = base64_to_rsa_public_key(pem_key)?;
-///
-/// // Base64 format key
-/// let b64_key = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AM...";
-/// let rsa_key = base64_to_rsa_public_key(b64_key)?;
-/// ```
-pub fn base64_to_rsa_public_key(
-    plain_text_rsa_pub: &str,
-) -> Result<RsaPublicKey, ReplicateStatusCause> {
-    let stripped = plain_text_rsa_pub
-        .replace("-----BEGIN PUBLIC KEY-----", "")
-        .replace("-----END PUBLIC KEY-----", "")
-        .chars()
-        .filter(|c| *c != '\n' && *c != '\r')
-        .collect::<String>();
-    let decoded = match base64::engine::general_purpose::STANDARD.decode(&stripped) {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            error!("Failed to decode base64 RSA public key: {}", e);
-            return Err(ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey);
-        }
-    };
-    match RsaPublicKey::from_public_key_der(&decoded) {
-        Ok(pk) => Ok(pk),
-        Err(e) => {
-            error!("Failed to parse RSA public key: {}", e);
-            Err(ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey)
-        }
-    }
-}
-
-/// Encrypts data using RSA public key cryptography with PKCS#1 v1.5 padding.
-///
-/// This function encrypts the provided data (typically an AES key) using
-/// RSA public key encryption. It's designed for encrypting small amounts
-/// of data, such as symmetric encryption keys in hybrid cryptosystems.
-///
-/// # Encryption Details
-///
-/// - **Algorithm**: RSA with PKCS#1 v1.5 padding
-/// - **Input Size**: Limited by RSA key size minus padding overhead
-/// - **Output Size**: Always equals RSA key size in bytes
-/// - **Randomization**: Each encryption produces different ciphertext
-/// - **Encoding**: Output is Base64 encoded for safe storage/transmission
-///
-/// # Arguments
-///
-/// * `aes_key` - The data to encrypt (typically a 32-byte AES key).
-///   Must not exceed RSA key size minus padding overhead (~11 bytes).
-/// * `public_key` - A validated RSA public key for encryption.
-///
-/// # Returns
-///
-/// * `Result<String, ReplicateStatusCause>` - On success, returns a Base64-encoded
-///   string containing the RSA-encrypted data. The decoded size equals the RSA key size.
-///
-/// # Security Properties
-///
-/// - **Probabilistic**: Same input produces different outputs due to random padding
-/// - **One-way**: Computationally infeasible to decrypt without private key
-/// - **Authenticated**: Only the corresponding private key can decrypt
-/// - **Malleable**: RSA without additional measures is malleable (consider OAEP for new designs)
-///
-/// # Errors
-///
-/// * `PostComputeEncryptionFailed` - If:
-///   - Input data exceeds maximum size for key
-///   - RSA encryption operation fails
-///   - Random number generation fails
-///   - Key is invalid or corrupted
-///
-/// # Example
-///
-/// ```rust
-/// // Encrypt an AES key with RSA
-/// let aes_key = generate_aes_key()?;
-/// let rsa_public_key = base64_to_rsa_public_key(pem_key)?;
-/// let encrypted_key_b64 = rsa_encrypt(&aes_key, &rsa_public_key)?;
-///
-/// // Store the Base64-encoded encrypted key
-/// write_file("aes-key.rsa".to_string(), encrypted_key_b64.as_bytes())?;
-/// ```
-pub fn rsa_encrypt(
-    aes_key: &[u8],
-    public_key: &RsaPublicKey,
-) -> Result<String, ReplicateStatusCause> {
-    let encrypted = match public_key.encrypt(&mut OsRng, Pkcs1v15Encrypt, aes_key) {
-        Ok(ct) => ct,
-        Err(e) => {
-            error!("RSA encryption failed: {}", e);
-            return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
-        }
-    };
-    Ok(base64::engine::general_purpose::STANDARD.encode(encrypted))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use base64::engine::general_purpose;
-    use rsa::{BigUint, traits::PublicKeyParts};
     use std::{fs::File, io::Read};
     use tempfile::tempdir;
     use zip::ZipArchive;
@@ -628,20 +446,6 @@ M1XvGQa3D0LnJTvhAgljz3Jpl7whAWQgluVDVNq7erJVN7/d5jpTG29FWrAYujvs
 KfizbB8KpGwCHwFcHZurz9+Sp4mH5cQCvz/VhFrAvzbhsIl6Qf8XURHmqxYc/DRt
 FQIDAQAB
 -----END PUBLIC KEY-----"#;
-
-    // The same key as above, but Base64 encoded DER (PKCS#8 public key format)
-    // This is what `base64_to_rsa_public_key` expects after stripping PEM headers/footers.
-    const TEST_RSA_PUBLIC_KEY_DER_BASE64: &str = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr0mx20CSFczJaM4rtYfLVHXfTybD4J85SGrI6GfPlOhAnocZOMIRJVqrYSGqfNvw6bnv3OrNp0OJ6Av7v20rYiciyJ/R9c7W4jLksTC0qAEr1x8IsH1rsTcgIhD+V2eQWqi05ArUg+YDQiGr/B6TjJRbbZIjcX6l/let03NJ8b6vMgaY+6tpt9GXhm27/tVIG6vt0NYViU0cOY3+fRH7M1XvGQa3D0LnJTvhAgljz3Jpl7whAWQgluVDVNq7erJVN7/d5jpTG29FWrAYujvsKfizbB8KpGwCHwFcHZurz9+Sp4mH5cQCvz/VhFrAvzbhsIl6Qf8XURHmqxYc/DRtFQIDAQAB";
-
-    const TEST_RSA_PUBLIC_KEY_NO_HEADERS: &str = r#"
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr0mx20CSFczJaM4rtYfL
-VHXfTybD4J85SGrI6GfPlOhAnocZOMIRJVqrYSGqfNvw6bnv3OrNp0OJ6Av7v20r
-YiciyJ/R9c7W4jLksTC0qAEr1x8IsH1rsTcgIhD+V2eQWqi05ArUg+YDQiGr/B6T
-jJRbbZIjcX6l/let03NJ8b6vMgaY+6tpt9GXhm27/tVIG6vt0NYViU0cOY3+fRH7
-M1XvGQa3D0LnJTvhAgljz3Jpl7whAWQgluVDVNq7erJVN7/d5jpTG29FWrAYujvs
-KfizbB8KpGwCHwFcHZurz9+Sp4mH5cQCvz/VhFrAvzbhsIl6Qf8XURHmqxYc/DRt
-FQIDAQAB
-"#;
 
     // region encrypt_data
     #[test]
@@ -714,14 +518,11 @@ FQIDAQAB
             "AES key file not found in output directory."
         );
 
-        let aes_key_content_b64 =
-            fs::read_to_string(&aes_key_file_in_dir).expect("Failed to read AES key file from dir");
-        assert!(!aes_key_content_b64.is_empty());
-        assert!(
-            general_purpose::STANDARD
-                .decode(&aes_key_content_b64)
-                .is_ok()
-        );
+        let aes_key_content_bytes =
+            fs::read(&aes_key_file_in_dir).expect("Failed to read AES key file from dir");
+        assert!(!aes_key_content_bytes.is_empty());
+        // AES key is now stored as raw encrypted bytes, not Base64 string
+        assert_eq!(aes_key_content_bytes.len(), 256); // RSA-2048 produces 256-byte output
     }
 
     #[test]
@@ -817,19 +618,19 @@ FQIDAQAB
                 "AES key file 'aes-key.rsa' not found in zip."
             );
             let mut aes_key_file_in_zip = aes_key_entry.unwrap();
-            let mut aes_key_content_b64 = String::new();
+            let mut aes_key_content_bytes = Vec::new();
             aes_key_file_in_zip
-                .read_to_string(&mut aes_key_content_b64)
+                .read_to_end(&mut aes_key_content_bytes)
                 .expect("Failed to read AES key from zip");
             assert!(
-                !aes_key_content_b64.is_empty(),
+                !aes_key_content_bytes.is_empty(),
                 "AES key content in zip should not be empty."
             );
-            assert!(
-                general_purpose::STANDARD
-                    .decode(&aes_key_content_b64)
-                    .is_ok(),
-                "AES key in zip is not valid Base64."
+            // AES key is now stored as raw encrypted bytes, not Base64 string
+            assert_eq!(
+                aes_key_content_bytes.len(),
+                256,
+                "RSA-2048 produces 256-byte output"
             );
         }
     }
@@ -860,8 +661,8 @@ FQIDAQAB
     }
 
     #[test]
-    fn encrypt_data_returns_empty_string_when_rsa_key_is_invalid() {
-        // Edge case: invalid RSA key, should return Ok("")
+    fn encrypt_data_returns_error_when_rsa_key_is_invalid() {
+        // Edge case: invalid RSA key, should now return Err instead of Ok("")
         let base_temp = tempdir().expect("Failed to create base temp dir");
         let input_dir = base_temp.path().join("input_invalid_key_dir");
         fs::create_dir_all(&input_dir).expect("Failed to create dir for invalid key test");
@@ -876,14 +677,12 @@ FQIDAQAB
             true, // produce_zip doesn't matter
         );
         assert!(
-            result.is_ok(),
-            "encrypt_data should return Ok for invalid RSA key. Error: {:?}",
-            result.err()
+            result.is_err(),
+            "encrypt_data should return Err for invalid RSA key"
         );
         assert_eq!(
-            result.unwrap(),
-            "",
-            "encrypt_data should return an empty string for invalid RSA key."
+            result.unwrap_err(),
+            ReplicateStatusCause::PostComputeEncryptionFailed
         );
     }
 
@@ -1106,221 +905,6 @@ FQIDAQAB
             encrypted_result_long.err().unwrap(),
             ReplicateStatusCause::PostComputeEncryptionFailed,
             "Should fail for long key"
-        );
-    }
-    // endregion
-
-    // region base64_to_rsa_public_key
-    #[test]
-    fn base64_to_rsa_public_key_returns_key_when_input_is_valid_pem() {
-        let result = base64_to_rsa_public_key(TEST_RSA_PUBLIC_KEY_PEM);
-        assert!(
-            result.is_ok(),
-            "Should successfully parse valid PEM. Error: {:?}",
-            result.err()
-        );
-
-        let public_key = result.unwrap();
-        assert!(
-            public_key.n().to_bytes_be().len() >= 256,
-            "Public key modulus size is too small for a 2048-bit key."
-        );
-    }
-
-    #[test]
-    fn base64_to_rsa_public_key_returns_key_when_no_headers() {
-        let result = base64_to_rsa_public_key(TEST_RSA_PUBLIC_KEY_NO_HEADERS);
-        assert!(result.is_ok());
-
-        let key = result.unwrap();
-        assert_eq!(key.size(), 256);
-    }
-
-    #[test]
-    fn base64_to_rsa_public_key_returns_key_when_with_newlines() {
-        let key_with_newlines = TEST_RSA_PUBLIC_KEY_PEM
-            .replace("-----BEGIN PUBLIC KEY-----", "-----BEGIN PUBLIC KEY-----\n")
-            .replace("-----END PUBLIC KEY-----", "\n-----END PUBLIC KEY-----");
-
-        let result = base64_to_rsa_public_key(&key_with_newlines);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn base64_to_rsa_public_key_returns_error_when_input_is_invalid_base64() {
-        let invalid_base64_key =
-            "-----BEGIN PUBLIC KEY-----\nnot_base64_at_all!!!\n-----END PUBLIC KEY-----";
-
-        let result = base64_to_rsa_public_key(invalid_base64_key);
-        assert!(result.is_err(), "Should fail for invalid Base64 content.");
-        assert_eq!(
-            result.err().unwrap(),
-            ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey
-        );
-
-        let direct_invalid_base64 = "not_base64_at_all!!!";
-        let result_direct = base64_to_rsa_public_key(direct_invalid_base64);
-        assert!(
-            result_direct.is_err(),
-            "Should fail for direct invalid Base64 content."
-        );
-        assert_eq!(
-            result_direct.err().unwrap(),
-            ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey
-        );
-    }
-
-    #[test]
-    fn base64_to_rsa_public_key_returns_error_when_invalid_der() {
-        let invalid_der_b64 = base64::engine::general_purpose::STANDARD.encode(b"invalid der data");
-
-        let result = base64_to_rsa_public_key(&invalid_der_b64);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey
-        );
-    }
-
-    #[test]
-    fn base64_to_rsa_public_key_returns_public_key_when_input_is_valid_der_base64() {
-        let result = base64_to_rsa_public_key(TEST_RSA_PUBLIC_KEY_DER_BASE64);
-        assert!(
-            result.is_ok(),
-            "Should successfully parse valid Base64 DER. Error: {:?}",
-            result.err()
-        );
-
-        let public_key = result.unwrap();
-        assert!(
-            public_key.n().to_bytes_be().len() >= 256,
-            "Public key modulus size is too small for a 2048-bit key."
-        );
-    }
-
-    #[test]
-    fn base64_to_rsa_public_key_returns_error_when_input_is_not_rsa_key() {
-        let not_a_key_base64 = "SGVsbG8sIFdvcmxkIQ=="; // "Hello, World!" in Base64
-        let pem_like_not_a_key = format!(
-            "-----BEGIN PUBLIC KEY-----\n{}\n-----END PUBLIC KEY-----",
-            not_a_key_base64
-        );
-
-        let result = base64_to_rsa_public_key(&pem_like_not_a_key);
-        assert!(
-            result.is_err(),
-            "Should fail for Base64 data that isn't a public key."
-        );
-        assert_eq!(
-            result.err().unwrap(),
-            ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey
-        );
-
-        let result_direct_b64 = base64_to_rsa_public_key(not_a_key_base64);
-        assert!(
-            result_direct_b64.is_err(),
-            "Should fail for direct Base64 data that isn't a public key."
-        );
-        assert_eq!(
-            result_direct_b64.err().unwrap(),
-            ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey
-        );
-    }
-    // endregion
-
-    // region rsa_encrypt
-    #[test]
-    fn rsa_encrypt_returns_encrypted_string_when_input_is_valid() {
-        let aes_key = generate_aes_key().expect("Failed to generate AES key for test");
-        let rsa_public_key_obj = base64_to_rsa_public_key(TEST_RSA_PUBLIC_KEY_PEM)
-            .expect("Failed to parse RSA public key for test");
-
-        let result = rsa_encrypt(&aes_key, &rsa_public_key_obj);
-        assert!(
-            result.is_ok(),
-            "RSA encryption should succeed. Error: {:?}",
-            result.err()
-        );
-
-        let encrypted_aes_key_base64 = result.unwrap();
-        assert!(
-            !encrypted_aes_key_base64.is_empty(),
-            "Encrypted AES key should not be empty."
-        );
-
-        let decoded_result = general_purpose::STANDARD.decode(&encrypted_aes_key_base64);
-        assert!(
-            decoded_result.is_ok(),
-            "Encrypted AES key is not valid Base64. Error: {:?}",
-            decoded_result.err()
-        );
-        assert_eq!(
-            decoded_result.unwrap().len(),
-            256,
-            "RSA encrypted output length does not match key size (2048 bits / 256 bytes)."
-        );
-    }
-
-    #[test]
-    fn rsa_encrypt_returns_different_results_when_called_multiple_times() {
-        let key = base64_to_rsa_public_key(TEST_RSA_PUBLIC_KEY_PEM).unwrap();
-        let data = b"test data";
-
-        let encrypted1 = rsa_encrypt(data, &key).unwrap();
-        let encrypted2 = rsa_encrypt(data, &key).unwrap();
-        assert_ne!(encrypted1, encrypted2);
-    }
-
-    #[test]
-    fn rsa_encrypt_returns_error_when_data_too_large() {
-        let key = base64_to_rsa_public_key(TEST_RSA_PUBLIC_KEY_PEM).unwrap();
-        let large_data = vec![0u8; 1000]; // Much larger than key size
-
-        let result = rsa_encrypt(&large_data, &key);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            ReplicateStatusCause::PostComputeEncryptionFailed
-        );
-    }
-
-    #[test]
-    fn rsa_encrypt_returns_error_when_key_is_invalid() {
-        let key_result = RsaPublicKey::new(BigUint::from(0u8), BigUint::from(0u8));
-        assert!(
-            key_result.is_err(),
-            "RsaPublicKey::new should fail for invalid modulus/exponent"
-        );
-    }
-
-    #[test]
-    fn rsa_encrypt_encrypts_empty_data_when_data_is_empty() {
-        let key = base64_to_rsa_public_key(TEST_RSA_PUBLIC_KEY_PEM).unwrap();
-        let empty_data = b"";
-
-        let result = rsa_encrypt(empty_data, &key);
-        assert!(
-            result.is_ok(),
-            "RSA encryption should succeed for empty data. Error: {:?}",
-            result.err()
-        );
-
-        let encrypted = result.unwrap();
-        assert!(
-            !encrypted.is_empty(),
-            "Encrypted output should not be empty for empty input."
-        );
-
-        let decoded = general_purpose::STANDARD.decode(&encrypted);
-        assert!(
-            decoded.is_ok(),
-            "Encrypted output should be valid base64. Error: {:?}",
-            decoded.err()
-        );
-        assert_eq!(
-            decoded.unwrap().len(),
-            256,
-            "Encrypted output should match key size (256 bytes for 2048-bit key)"
         );
     }
     // endregion
