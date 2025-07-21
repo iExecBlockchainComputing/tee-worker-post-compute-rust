@@ -398,10 +398,10 @@ impl Web2ResultInterface for Web2ResultService {
                 Ok(parsed_value) => parsed_value,
                 Err(e) => {
                     error!(
-                        "Failed to parse RESULT_ENCRYPTION environment variable as a boolean [callback_env_var:{}] : {}",
+                        "Failed to parse RESULT_ENCRYPTION environment variable as a boolean, defaulting to false [callback_env_var:{}] : {}",
                         value, e
                     );
-                    return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
+                    false
                 }
             },
             Err(e) => {
@@ -1074,11 +1074,13 @@ mod tests {
     }
 
     #[test]
-    fn eventually_encrypt_result_handles_various_invalid_boolean_values_when_parsing_fails() {
+    fn eventually_encrypt_result_defaults_to_false_when_invalid_boolean_values_provided() {
         let test_file = create_temp_file_with_text("test content");
         let file_path = test_file.path().to_str().unwrap();
 
-        let invalid_values = ["invalid", "yes", "no", "maybe", "2", "-1", "1", "0", ""];
+        // Note: Empty string ("") is excluded because it's handled at the env var level
+        // and still returns an error, while non-empty invalid values default to false
+        let invalid_values = ["invalid", "yes", "no", "maybe", "2", "-1", "1", "0"];
 
         for invalid_value in invalid_values {
             with_vars(
@@ -1088,9 +1090,18 @@ mod tests {
                 )],
                 || {
                     let result = Web2ResultService.eventually_encrypt_result(file_path);
+                    // Invalid boolean values now default to false (encryption disabled)
+                    // and return the original file path instead of an error
+                    assert!(
+                        result.is_ok(),
+                        "Expected Ok for invalid value '{}' but got Err: {:?}",
+                        invalid_value,
+                        result
+                    );
                     assert_eq!(
-                        result,
-                        Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
+                        result.unwrap(),
+                        file_path,
+                        "Should return original file path when defaulting to false"
                     );
                 },
             );
@@ -1321,6 +1332,27 @@ mod tests {
                     output_zip_path_str
                 );
                 assert_eq!(output_zip_path.extension().unwrap_or_default(), "zip");
+            },
+        );
+    }
+
+    #[test]
+    fn eventually_encrypt_result_returns_error_when_env_var_is_empty_string() {
+        let test_file = create_temp_file_with_text("test content");
+        let file_path = test_file.path().to_str().unwrap();
+
+        with_vars(
+            vec![(
+                TeeSessionEnvironmentVariable::ResultEncryption.name(),
+                Some(""), // Empty string is handled at env var level, not parsing level
+            )],
+            || {
+                let result = Web2ResultService.eventually_encrypt_result(file_path);
+                // Empty strings are handled by get_env_var_or_error and still return errors
+                assert_eq!(
+                    result,
+                    Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
+                );
             },
         );
     }
