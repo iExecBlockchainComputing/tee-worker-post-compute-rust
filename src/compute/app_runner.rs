@@ -9,7 +9,6 @@ use crate::compute::{
     web2_result::{Web2ResultInterface, Web2ResultService},
 };
 use log::{error, info};
-use std::error::Error;
 
 /// Defines the interface for post-compute operations.
 ///
@@ -17,7 +16,7 @@ use std::error::Error;
 /// Implementations of this trait can be used with the [`start_with_runner`] function to execute
 /// the post-compute workflow.
 pub trait PostComputeRunnerInterface {
-    fn run_post_compute(&self, chain_task_id: &str) -> Result<(), Box<dyn Error>>;
+    fn run_post_compute(&self, chain_task_id: &str) -> Result<(), ReplicateStatusCause>;
     fn get_challenge(&self, chain_task_id: &str) -> Result<String, ReplicateStatusCause>;
     fn send_exit_cause(
         &self,
@@ -46,38 +45,36 @@ impl DefaultPostComputeRunner {
 }
 
 impl PostComputeRunnerInterface for DefaultPostComputeRunner {
-    fn run_post_compute(&self, chain_task_id: &str) -> Result<(), Box<dyn Error>> {
+    fn run_post_compute(&self, chain_task_id: &str) -> Result<(), ReplicateStatusCause> {
         let should_callback: bool = match get_env_var_or_error(
             TeeSessionEnvironmentVariable::ResultStorageCallback,
             ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO: Update this error cause to a more specific one
         ) {
-            Ok(value) => match value.parse::<bool>() {
+            Ok(value) => match value.to_lowercase().parse::<bool>() {
                 Ok(parsed_value) => parsed_value,
-                Err(e) => {
+                Err(_) => {
                     error!(
                         "Failed to parse RESULT_STORAGE_CALLBACK environment variable as a boolean [callback_env_var:{}]",
                         value
                     );
-                    return Err(Box::new(e));
+                    return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
                 }
             },
             Err(e) => {
                 error!("Failed to get RESULT_STORAGE_CALLBACK environment variable");
-                return Err(Box::new(e));
+                return Err(e);
             }
         };
 
         let mut computed_file = read_computed_file(chain_task_id, "/iexec_out")?;
         build_result_digest_in_computed_file(&mut computed_file, should_callback)?;
-        sign_computed_file(&mut computed_file).map_err(Box::new)?;
+        sign_computed_file(&mut computed_file)?;
 
         if !should_callback {
-            Web2ResultService
-                .encrypt_and_upload_result(&computed_file)
-                .map_err(Box::new)?;
+            Web2ResultService.encrypt_and_upload_result(&computed_file)?;
         }
 
-        self.send_computed_file(&computed_file).map_err(Box::new)?;
+        self.send_computed_file(&computed_file)?;
 
         Ok(())
     }
@@ -177,21 +174,11 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
             info!("TEE post-compute completed");
             0
         }
-        Err(error) => {
-            let exit_cause: &ReplicateStatusCause;
-            match error.downcast_ref::<ReplicateStatusCause>() {
-                Some(post_compute_error) => {
-                    exit_cause = post_compute_error;
-                    error!(
-                        "TEE post-compute failed with exit cause [errorMessage:{}]",
-                        &exit_cause
-                    );
-                }
-                None => {
-                    exit_cause = &ReplicateStatusCause::PostComputeFailedUnknownIssue;
-                    error!("TEE post-compute failed without explicit exit cause");
-                }
-            }
+        Err(exit_cause) => {
+            error!(
+                "TEE post-compute failed with exit cause [errorMessage:{}]",
+                &exit_cause
+            );
 
             let authorization: String = match runner.get_challenge(&chain_task_id) {
                 Ok(challenge) => challenge,
@@ -204,7 +191,7 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
                 }
             };
 
-            match runner.send_exit_cause(&authorization, &chain_task_id, exit_cause) {
+            match runner.send_exit_cause(&authorization, &chain_task_id, &exit_cause) {
                 Ok(()) => 1, // Exit code for reported failure
                 Err(_) => {
                     error!("Failed to report exit cause [exitCause:{}]", &exit_cause);
@@ -288,13 +275,13 @@ mod tests {
     }
 
     impl PostComputeRunnerInterface for MockRunner {
-        fn run_post_compute(&self, _chain_task_id: &str) -> Result<(), Box<dyn Error>> {
+        fn run_post_compute(&self, _chain_task_id: &str) -> Result<(), ReplicateStatusCause> {
             if self.run_post_compute_success {
                 Ok(())
             } else if let Some(cause) = &self.error_cause {
-                Err(Box::new(cause.clone()))
+                Err(cause.clone())
             } else {
-                Err("Mock error".into())
+                Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
             }
         }
 
