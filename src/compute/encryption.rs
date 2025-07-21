@@ -28,9 +28,9 @@ use std::{fs, path::Path};
 ///
 /// # Arguments
 ///
-/// * `in_data_file_path` - Path to the input file to encrypt. Must be a valid, readable file.
-/// * `plain_text_rsa_pub` - RSA public key in PEM format (with or without headers).
-///   Supports both PKCS#1 and PKCS#8 formats.
+/// * `in_data_file_path` - Path to the input file to encrypt. Must be a valid, readable, non-empty file.
+/// * `plain_text_rsa_pub` - RSA public key in PEM format with proper headers/footers.
+///   Must be a valid PKCS#8 or PKCS#1 formatted PEM key.
 /// * `produce_zip` - If `true`, creates a ZIP archive containing encrypted files.
 ///   If `false`, returns the directory path containing encrypted files.
 ///
@@ -39,7 +39,6 @@ use std::{fs, path::Path};
 /// * `Result<String, ReplicateStatusCause>` - On success, returns the path to either:
 ///   - ZIP file path (if `produce_zip` is `true`)
 ///   - Directory path containing encrypted files (if `produce_zip` is `false`)
-///   - Empty string for non-critical failures (operation continues but with warnings)
 ///
 /// # Output Structure
 ///
@@ -47,21 +46,20 @@ use std::{fs, path::Path};
 /// ```text
 /// encrypted-myfile/
 /// ├── myfile.txt.aes        # AES-encrypted data (IV + ciphertext)
-/// └── aes-key.rsa           # RSA-encrypted AES key (Base64 encoded)
+/// └── aes-key.rsa           # RSA-encrypted AES key (raw bytes)
 /// ```
 ///
 /// When `produce_zip` is `true`, creates `iexec_out.zip` containing the above structure.
 ///
 /// # Errors
 ///
-/// * `PostComputeEncryptionFailed` - Critical failures:
+/// * `PostComputeEncryptionFailed` - Returned for any failure including:
 ///   - Invalid file path or unreadable input file
-///   - Cryptographic operation failures
-///   - File system operation failures
-/// * Returns empty string for non-critical failures:
 ///   - Empty input files
-///   - Invalid RSA public keys
-///   - Directory creation failures
+///   - Invalid or malformed RSA public keys
+///   - Cryptographic operation failures
+///   - File system operation failures (directory creation, file writing)
+///   - ZIP creation failures
 ///
 /// # Security Notes
 ///
@@ -69,6 +67,7 @@ use std::{fs, path::Path};
 /// - RSA encryption uses PKCS#1 v1.5 padding (industry standard)
 /// - All random values are generated using cryptographically secure `OsRng`
 /// - Input data is securely overwritten in memory after encryption
+/// - AES keys are stored as raw encrypted bytes (not Base64 encoded)
 ///
 /// # Example
 ///
