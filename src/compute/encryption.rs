@@ -11,6 +11,9 @@ use rsa::{Pkcs1v15Encrypt, RsaPublicKey, pkcs8::DecodePublicKey};
 use sha3::{Digest, Sha3_256};
 use std::{fs, path::Path};
 
+const AES_KEY_LENGTH: usize = 32; // 256-bit key (32 bytes)
+const AES_IV_LENGTH: usize = 16; // 128-bit IV (16 bytes)
+
 /// Encrypts a data file using hybrid encryption (AES-256-CBC + RSA-2048).
 ///
 /// This function implements a secure hybrid encryption scheme where the input data
@@ -328,7 +331,7 @@ pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCa
         error!("AES encryption input data is empty");
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
     }
-    if key.len() != 32 {
+    if key.len() != AES_KEY_LENGTH {
         error!(
             "AES encryption key must be 32 bytes (256 bits), got {}",
             key.len()
@@ -337,7 +340,7 @@ pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCa
     }
 
     // Generate random 128-bit initialization vector
-    let mut iv = [0u8; 16];
+    let mut iv = [0u8; AES_IV_LENGTH];
     if let Err(e) = OsRng.try_fill_bytes(&mut iv) {
         error!("Failed to generate IV for AES encryption: {}", e);
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
@@ -748,7 +751,7 @@ FQIDAQAB
         assert!(result.is_ok());
 
         let key = result.unwrap();
-        assert_eq!(key.len(), 32);
+        assert_eq!(key.len(), AES_KEY_LENGTH);
     }
 
     #[test]
