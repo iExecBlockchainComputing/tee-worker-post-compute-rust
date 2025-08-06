@@ -243,7 +243,7 @@ pub fn encrypt_data(
 /// # Security
 ///
 /// - Uses `OsRng` which provides cryptographically secure randomness
-/// - Generates full 256-bit (`AES_KEY_LENGTH`-byte) keys for maximum security
+/// - Generates full 256-bit keys for maximum security
 /// - Each key is statistically unique across all invocations
 ///
 /// # Errors
@@ -284,7 +284,7 @@ pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
 /// # Arguments
 ///
 /// * `data` - The plaintext data to encrypt. Must not be empty.
-/// * `key` - The AES-256 key. Must be exactly `AES_KEY_LENGTH` bytes (256 bits).
+/// * `key` - The AES-256 key, whose length will be validated.
 ///
 /// # Returns
 ///
@@ -296,7 +296,7 @@ pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
 /// # Output Format
 ///
 /// ```text
-/// [IV: `AES_IV_LENGTH` bytes][Encrypted Data: variable length, multiple of `AES_BLOCK_SIZE` bytes]
+/// [IV: `AES_IV_LENGTH` bytes][Encrypted Data: variable length, multiple of `AES_IV_LENGTH` bytes]
 /// ```
 ///
 /// # Security Properties
@@ -837,7 +837,7 @@ FQIDAQAB
         let result = aes_encrypt(data, &key).unwrap();
         assert!(
             result.len() >= AES_IV_LENGTH,
-            "IV should be at least AES_IV_LENGTH bytes"
+            "IV should be at least {AES_IV_LENGTH} bytes"
         );
 
         let iv = &result[0..AES_IV_LENGTH];
