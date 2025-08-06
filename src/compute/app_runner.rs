@@ -342,7 +342,7 @@ mod tests {
                         || result == ExitMode::ReportedFailure
                         || result == ExitMode::UnreportedFailure
                         || result == ExitMode::InitializationFailure,
-                    "start() should return a valid exit code"
+                    "start() should return a valid exit code: {result:?}"
                 );
             },
         );
@@ -361,7 +361,7 @@ mod tests {
                 assert_eq!(
                     result,
                     ExitMode::InitializationFailure,
-                    "Should return 3 when chain task ID is missing"
+                    "Should return ExitMode::InitializationFailure when chain task ID is missing"
                 );
             },
         );
@@ -377,7 +377,7 @@ mod tests {
                 assert_eq!(
                     result,
                     ExitMode::InitializationFailure,
-                    "Should return 3 when chain task ID is empty"
+                    "Should return ExitMode::InitializationFailure when chain task ID is empty"
                 );
             },
         );
@@ -396,7 +396,7 @@ mod tests {
                 assert_eq!(
                     result,
                     ExitMode::Success,
-                    "Should return 0 on successful execution"
+                    "Should return ExitMode::Success on successful execution"
                 );
             },
         );
@@ -418,7 +418,7 @@ mod tests {
                 assert_eq!(
                     result,
                     ExitMode::ReportedFailure,
-                    "Should return 1 when error is reported successfully"
+                    "Should return ExitMode::ReportedFailure when error is reported successfully"
                 );
             },
         );
@@ -438,7 +438,7 @@ mod tests {
                 assert_eq!(
                     result,
                     ExitMode::ReportedFailure,
-                    "Should return 1 when unknown error is reported successfully"
+                    "Should return ExitMode::ReportedFailure when unknown error is reported successfully"
                 );
             },
         );
@@ -462,7 +462,7 @@ mod tests {
                 assert_eq!(
                     result,
                     ExitMode::UnreportedFailure,
-                    "Should return 2 when error reporting fails"
+                    "Should return ExitMode::UnreportedFailure when error reporting fails"
                 );
             },
         );
@@ -486,7 +486,7 @@ mod tests {
                 assert_eq!(
                     result,
                     ExitMode::UnreportedFailure,
-                    "Should return 2 when signer service fails"
+                    "Should return ExitMode::UnreportedFailure when signer service fails"
                 );
             },
         );
