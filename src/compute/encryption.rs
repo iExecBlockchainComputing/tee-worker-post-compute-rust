@@ -237,13 +237,13 @@ pub fn encrypt_data(
 ///
 /// # Returns
 ///
-/// * `Result<Vec<u8>, ReplicateStatusCause>` - On success, returns a 32-byte
+/// * `Result<Vec<u8>, ReplicateStatusCause>` - On success, returns a `AES_KEY_LENGTH`-byte
 ///   vector containing the AES-256 key. On failure, returns `PostComputeEncryptionFailed`.
 ///
 /// # Security
 ///
 /// - Uses `OsRng` which provides cryptographically secure randomness
-/// - Generates full 256-bit (32-byte) keys for maximum security
+/// - Generates full 256-bit (`AES_KEY_LENGTH`-byte) keys for maximum security
 /// - Each key is statistically unique across all invocations
 ///
 /// # Errors
@@ -255,10 +255,10 @@ pub fn encrypt_data(
 ///
 /// ```rust
 /// let aes_key = generate_aes_key()?;
-/// assert_eq!(aes_key.len(), 32); // 256 bits = 32 bytes
+/// assert_eq!(aes_key.len(), AES_KEY_LENGTH);
 /// ```
 pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
-    let mut key_bytes = [0u8; 32]; // 256-bit key (32 bytes)
+    let mut key_bytes = [0u8; AES_KEY_LENGTH];
     if let Err(e) = OsRng.try_fill_bytes(&mut key_bytes) {
         error!("Failed to generate AES key: {}", e);
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
@@ -284,19 +284,19 @@ pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
 /// # Arguments
 ///
 /// * `data` - The plaintext data to encrypt. Must not be empty.
-/// * `key` - The AES-256 key. Must be exactly 32 bytes (256 bits).
+/// * `key` - The AES-256 key. Must be exactly `AES_KEY_LENGTH` bytes (256 bits).
 ///
 /// # Returns
 ///
 /// * `Result<Vec<u8>, ReplicateStatusCause>` - On success, returns a vector
 ///   containing `[IV][Ciphertext]` where:
-///   - First 16 bytes: Random initialization vector
+///   - First `AES_IV_LENGTH` bytes: Random initialization vector
 ///   - Remaining bytes: AES-encrypted data with PKCS#7 padding
 ///
 /// # Output Format
 ///
 /// ```text
-/// [IV: 16 bytes][Encrypted Data: variable length, multiple of 16 bytes]
+/// [IV: `AES_IV_LENGTH` bytes][Encrypted Data: variable length, multiple of `AES_BLOCK_SIZE` bytes]
 /// ```
 ///
 /// # Security Properties
@@ -311,7 +311,7 @@ pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
 ///
 /// * `PostComputeEncryptionFailed` - If:
 ///   - Input data is empty
-///   - Key is not exactly 32 bytes
+///   - Key is not exactly `AES_KEY_LENGTH` bytes
 ///   - Random number generation fails
 ///   - Encryption operation fails
 ///
@@ -322,9 +322,9 @@ pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
 /// let key = generate_aes_key()?;
 /// let encrypted = aes_encrypt(data, &key)?;
 ///
-/// // Output format: [16-byte IV][encrypted data]
-/// assert!(encrypted.len() >= 16 + data.len());
-/// assert_eq!(encrypted.len() % 16, 0); // Multiple of block size
+/// // Output format: [`AES_IV_LENGTH`-byte IV][encrypted data]
+/// assert!(encrypted.len() >= AES_IV_LENGTH + data.len());
+/// assert_eq!(encrypted.len() % AES_IV_LENGTH, 0);
 /// ```
 pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCause> {
     if data.is_empty() {
@@ -333,7 +333,8 @@ pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCa
     }
     if key.len() != AES_KEY_LENGTH {
         error!(
-            "AES encryption key must be 32 bytes (256 bits), got {}",
+            "AES encryption key must be {} bytes, got {}",
+            AES_KEY_LENGTH,
             key.len()
         );
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
@@ -774,11 +775,11 @@ FQIDAQAB
         let encrypted_data = encrypted_result.unwrap();
         assert_ne!(data, encrypted_data.as_slice());
 
-        // AES_CBC_PKCS7: output is IV (16 bytes) + ciphertext (multiple of block size, 16 bytes)
+        // AES_CBC_PKCS7: output is IV (`AES_IV_LENGTH` bytes) + ciphertext (multiple of block size, `AES_IV_LENGTH` bytes)
         // So, length should be > data length and a multiple of 16 if data is not empty.
         // More precisely, IV_SIZE + PADDED_DATA_SIZE
-        // PADDED_DATA_SIZE = ((data.len() / 16) + 1) * 16
-        let expected_min_len = 16 + (((data.len() / 16) + 1) * 16);
+        // PADDED_DATA_SIZE = ((data.len() / `AES_IV_LENGTH`) + 1) * `AES_IV_LENGTH`
+        let expected_min_len = AES_IV_LENGTH + (((data.len() / AES_IV_LENGTH) + 1) * AES_IV_LENGTH);
         assert_eq!(
             encrypted_data.len(),
             expected_min_len,
@@ -834,10 +835,13 @@ FQIDAQAB
         let key = generate_aes_key().unwrap();
 
         let result = aes_encrypt(data, &key).unwrap();
-        assert!(result.len() >= 16, "IV should be at least 16 bytes");
+        assert!(
+            result.len() >= AES_IV_LENGTH,
+            "IV should be at least AES_IV_LENGTH bytes"
+        );
 
-        let iv = &result[0..16];
-        assert_ne!(iv, &[0u8; 16], "IV should not be all zeros");
+        let iv = &result[0..AES_IV_LENGTH];
+        assert_ne!(iv, &[0u8; AES_IV_LENGTH], "IV should not be all zeros");
     }
 
     #[test]
