@@ -237,7 +237,7 @@ pub fn encrypt_data(
 ///
 /// # Returns
 ///
-/// * `Result<Vec<u8>, ReplicateStatusCause>` - On success, returns a `AES_KEY_LENGTH`-byte
+/// * `Result<Vec<u8>, ReplicateStatusCause>` - On success, returns `AES_KEY_LENGTH` bytes
 ///   vector containing the AES-256 key. On failure, returns `PostComputeEncryptionFailed`.
 ///
 /// # Security
@@ -296,7 +296,7 @@ pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
 /// # Output Format
 ///
 /// ```text
-/// [IV: `AES_IV_LENGTH` bytes][Encrypted Data: variable length, multiple of `AES_IV_LENGTH` bytes]
+/// [IV: `AES_IV_LENGTH` bytes][Encrypted Data: variable length, multiple of block size (16 bytes)]
 /// ```
 ///
 /// # Security Properties
@@ -322,7 +322,7 @@ pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
 /// let key = generate_aes_key()?;
 /// let encrypted = aes_encrypt(data, &key)?;
 ///
-/// // Output format: [`AES_IV_LENGTH`-byte IV][encrypted data]
+/// // Output format: [`AES_IV_LENGTH` bytes IV][encrypted data]
 /// assert!(encrypted.len() >= AES_IV_LENGTH + data.len());
 /// assert_eq!(encrypted.len() % AES_IV_LENGTH, 0);
 /// ```
@@ -340,7 +340,7 @@ pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCa
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
     }
 
-    // Generate random `AES_IV_LENGTH`-byte initialization vector
+    // Generate random `AES_IV_LENGTH` bytes initialization vector
     let mut iv = [0u8; AES_IV_LENGTH];
     if let Err(e) = OsRng.try_fill_bytes(&mut iv) {
         error!("Failed to generate IV for AES encryption: {}", e);
@@ -504,7 +504,7 @@ FQIDAQAB
             fs::read(&aes_key_file_in_dir).expect("Failed to read AES key file from dir");
         assert!(!aes_key_content_bytes.is_empty());
         // AES key is now stored as raw encrypted bytes, not Base64 string
-        assert_eq!(aes_key_content_bytes.len(), 256); // RSA-2048 produces 256-byte output
+        assert_eq!(aes_key_content_bytes.len(), 256); // RSA-2048 produces 256-bits output
     }
 
     #[test]
@@ -612,7 +612,7 @@ FQIDAQAB
             assert_eq!(
                 aes_key_content_bytes.len(),
                 256,
-                "RSA-2048 produces 256-byte output"
+                "RSA-2048 produces 256-bits output"
             );
         }
     }
@@ -623,7 +623,7 @@ FQIDAQAB
         let input_dir = base_temp.path().join("input_empty_file_dir");
         fs::create_dir_all(&input_dir).expect("Failed to create dir for empty file test");
         let empty_file_path = input_dir.join("empty_data.txt");
-        File::create(&empty_file_path).expect("Failed to create empty file"); // Create 0-byte file
+        File::create(&empty_file_path).expect("Failed to create empty file"); // Create 0 byte file
 
         let result = encrypt_data(
             empty_file_path.to_str().unwrap(),
