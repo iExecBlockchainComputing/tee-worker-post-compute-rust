@@ -340,7 +340,7 @@ pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCa
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
     }
 
-    // Generate random 128-bit initialization vector
+    // Generate random `AES_IV_LENGTH`-byte initialization vector
     let mut iv = [0u8; AES_IV_LENGTH];
     if let Err(e) = OsRng.try_fill_bytes(&mut iv) {
         error!("Failed to generate IV for AES encryption: {}", e);
