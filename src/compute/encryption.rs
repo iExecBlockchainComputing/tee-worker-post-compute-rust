@@ -12,7 +12,7 @@ use sha3::{Digest, Sha3_256};
 use std::{fs, path::Path};
 
 const AES_KEY_LENGTH: usize = 32; // 256-bit key (32 bytes)
-const AES_IV_LENGTH: usize = 16; // 128-bit IV (16 bytes)
+const AES_IV_LENGTH: usize = 16; // 128-bit IV (16 bytes) same as the AES block size
 
 /// Encrypts a data file using hybrid encryption (AES-256-CBC + RSA-2048).
 ///
@@ -322,9 +322,10 @@ pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
 /// let key = generate_aes_key()?;
 /// let encrypted = aes_encrypt(data, &key)?;
 ///
-/// // Output format: [`AES_IV_LENGTH` bytes IV][encrypted data]
-/// assert!(encrypted.len() >= AES_IV_LENGTH + data.len());
-/// assert_eq!(encrypted.len() % AES_IV_LENGTH, 0);
+/// // Output format: [`AES_IV_LENGTH` bytes IV][encrypted data with PKCS7 padding]
+/// let AES_BLOCK_SIZE = 16;
+/// let padding_needed = AES_BLOCK_SIZE - (data.len() % AES_BLOCK_SIZE);
+/// assert_eq!(encrypted.len(), AES_IV_LENGTH + data.len() + padding_needed);
 /// ```
 pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCause> {
     if data.is_empty() {
@@ -775,23 +776,39 @@ FQIDAQAB
         let encrypted_data = encrypted_result.unwrap();
         assert_ne!(data, encrypted_data.as_slice());
 
-        // AES_CBC_PKCS7: output is IV (`AES_IV_LENGTH` bytes) + ciphertext (multiple of block size, `AES_IV_LENGTH` bytes)
-        // So, length should be > data length and a multiple of 16 if data is not empty.
-        // More precisely, IV_SIZE + PADDED_DATA_SIZE
-        // PADDED_DATA_SIZE = ((data.len() / `AES_IV_LENGTH`) + 1) * `AES_IV_LENGTH`
-        let expected_min_len = AES_IV_LENGTH + (((data.len() / AES_IV_LENGTH) + 1) * AES_IV_LENGTH);
+        const AES_BLOCK_SIZE: usize = 16; // AES block size (16 bytes)
+        // AES_CBC_PKCS7: output is IV (`AES_IV_LENGTH` bytes) + ciphertext (multiple of block size, AES_BLOCK_SIZE bytes)
+        // PKCS7 padding: adds (AES_BLOCK_SIZE - (data.len() % AES_BLOCK_SIZE)) bytes
+        // If data.len() % AES_BLOCK_SIZE == 0, adds a full AES_BLOCK_SIZE bytes of padding
+        // More precisely, IV_SIZE + DATA_SIZE + PADDING_SIZE
+        let padding_needed = AES_BLOCK_SIZE - (data.len() % AES_BLOCK_SIZE);
+        let expected_exact_len = AES_IV_LENGTH + data.len() + padding_needed;
         assert_eq!(
             encrypted_data.len(),
-            expected_min_len,
+            expected_exact_len,
             "Encrypted data length is unexpected. Got {}, expected {}. Original data length: {}",
             encrypted_data.len(),
-            expected_min_len,
+            expected_exact_len,
             data.len()
         );
         assert!(
             encrypted_data.len() > data.len(),
             "Encrypted data should be longer than original data due to IV and padding."
         );
+        assert!(
+            encrypted_data.len() >= AES_IV_LENGTH,
+            "IV should be at least {AES_IV_LENGTH} bytes"
+        );
+
+        let iv = &encrypted_data[0..AES_IV_LENGTH];
+        assert_ne!(iv, &[0u8; AES_IV_LENGTH], "IV should not be all zeros");
+        assert!(
+            encrypted_data.len() >= AES_IV_LENGTH,
+            "IV should be at least {AES_IV_LENGTH} bytes"
+        );
+
+        let iv = &encrypted_data[0..AES_IV_LENGTH];
+        assert_ne!(iv, &[0u8; AES_IV_LENGTH], "IV should not be all zeros");
         assert!(
             encrypted_data.len() >= AES_IV_LENGTH,
             "IV should be at least {AES_IV_LENGTH} bytes"
