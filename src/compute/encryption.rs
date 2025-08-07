@@ -11,6 +11,11 @@ use rsa::{Pkcs1v15Encrypt, RsaPublicKey, pkcs8::DecodePublicKey};
 use sha3::{Digest, Sha3_256};
 use std::{fs, path::Path};
 
+/// 256-bit key (32 bytes)
+const AES_KEY_LENGTH: usize = 32;
+/// 128-bit IV (16 bytes) same as the AES block size
+const AES_IV_LENGTH: usize = 16;
+
 /// Encrypts a data file using hybrid encryption (AES-256-CBC + RSA-2048).
 ///
 /// This function implements a secure hybrid encryption scheme where the input data
@@ -234,13 +239,13 @@ pub fn encrypt_data(
 ///
 /// # Returns
 ///
-/// * `Result<Vec<u8>, ReplicateStatusCause>` - On success, returns a 32-byte
+/// * `Result<Vec<u8>, ReplicateStatusCause>` - On success, returns `AES_KEY_LENGTH` bytes
 ///   vector containing the AES-256 key. On failure, returns `PostComputeEncryptionFailed`.
 ///
 /// # Security
 ///
 /// - Uses `OsRng` which provides cryptographically secure randomness
-/// - Generates full 256-bit (32-byte) keys for maximum security
+/// - Generates full 256-bit keys for maximum security
 /// - Each key is statistically unique across all invocations
 ///
 /// # Errors
@@ -252,10 +257,10 @@ pub fn encrypt_data(
 ///
 /// ```rust
 /// let aes_key = generate_aes_key()?;
-/// assert_eq!(aes_key.len(), 32); // 256 bits = 32 bytes
+/// assert_eq!(aes_key.len(), AES_KEY_LENGTH);
 /// ```
 pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
-    let mut key_bytes = [0u8; 32]; // 256-bit key (32 bytes)
+    let mut key_bytes = [0u8; AES_KEY_LENGTH];
     if let Err(e) = OsRng.try_fill_bytes(&mut key_bytes) {
         error!("Failed to generate AES key: {}", e);
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
@@ -281,19 +286,19 @@ pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
 /// # Arguments
 ///
 /// * `data` - The plaintext data to encrypt. Must not be empty.
-/// * `key` - The AES-256 key. Must be exactly 32 bytes (256 bits).
+/// * `key` - The AES-256 key, whose length will be validated.
 ///
 /// # Returns
 ///
 /// * `Result<Vec<u8>, ReplicateStatusCause>` - On success, returns a vector
 ///   containing `[IV][Ciphertext]` where:
-///   - First 16 bytes: Random initialization vector
+///   - First `AES_IV_LENGTH` bytes: Random initialization vector
 ///   - Remaining bytes: AES-encrypted data with PKCS#7 padding
 ///
 /// # Output Format
 ///
 /// ```text
-/// [IV: 16 bytes][Encrypted Data: variable length, multiple of 16 bytes]
+/// [IV: `AES_IV_LENGTH` bytes][Encrypted Data: variable length, multiple of block size (16 bytes)]
 /// ```
 ///
 /// # Security Properties
@@ -308,7 +313,7 @@ pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
 ///
 /// * `PostComputeEncryptionFailed` - If:
 ///   - Input data is empty
-///   - Key is not exactly 32 bytes
+///   - Key is not exactly `AES_KEY_LENGTH` bytes
 ///   - Random number generation fails
 ///   - Encryption operation fails
 ///
@@ -319,25 +324,27 @@ pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
 /// let key = generate_aes_key()?;
 /// let encrypted = aes_encrypt(data, &key)?;
 ///
-/// // Output format: [16-byte IV][encrypted data]
-/// assert!(encrypted.len() >= 16 + data.len());
-/// assert_eq!(encrypted.len() % 16, 0); // Multiple of block size
+/// // Output format: [`AES_IV_LENGTH` bytes IV][encrypted data with PKCS7 padding]
+/// let AES_BLOCK_SIZE = 16;
+/// let padding_needed = AES_BLOCK_SIZE - (data.len() % AES_BLOCK_SIZE);
+/// assert_eq!(encrypted.len(), AES_IV_LENGTH + data.len() + padding_needed);
 /// ```
 pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCause> {
     if data.is_empty() {
         error!("AES encryption input data is empty");
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
     }
-    if key.len() != 32 {
+    if key.len() != AES_KEY_LENGTH {
         error!(
-            "AES encryption key must be 32 bytes (256 bits), got {}",
+            "AES encryption key must be {} bytes, got {}",
+            AES_KEY_LENGTH,
             key.len()
         );
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
     }
 
-    // Generate random 128-bit initialization vector
-    let mut iv = [0u8; 16];
+    // Generate random `AES_IV_LENGTH` bytes initialization vector
+    let mut iv = [0u8; AES_IV_LENGTH];
     if let Err(e) = OsRng.try_fill_bytes(&mut iv) {
         error!("Failed to generate IV for AES encryption: {}", e);
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
@@ -500,7 +507,7 @@ FQIDAQAB
             fs::read(&aes_key_file_in_dir).expect("Failed to read AES key file from dir");
         assert!(!aes_key_content_bytes.is_empty());
         // AES key is now stored as raw encrypted bytes, not Base64 string
-        assert_eq!(aes_key_content_bytes.len(), 256); // RSA-2048 produces 256-byte output
+        assert_eq!(aes_key_content_bytes.len(), 256); // RSA-2048 produces 256 bytes output
     }
 
     #[test]
@@ -608,7 +615,7 @@ FQIDAQAB
             assert_eq!(
                 aes_key_content_bytes.len(),
                 256,
-                "RSA-2048 produces 256-byte output"
+                "RSA-2048 produces 256 bytes output"
             );
         }
     }
@@ -619,7 +626,7 @@ FQIDAQAB
         let input_dir = base_temp.path().join("input_empty_file_dir");
         fs::create_dir_all(&input_dir).expect("Failed to create dir for empty file test");
         let empty_file_path = input_dir.join("empty_data.txt");
-        File::create(&empty_file_path).expect("Failed to create empty file"); // Create 0-byte file
+        File::create(&empty_file_path).expect("Failed to create empty file"); // Create 0 byte file
 
         let result = encrypt_data(
             empty_file_path.to_str().unwrap(),
@@ -748,7 +755,7 @@ FQIDAQAB
         assert!(result.is_ok());
 
         let key = result.unwrap();
-        assert_eq!(key.len(), 32);
+        assert_eq!(key.len(), AES_KEY_LENGTH);
     }
 
     #[test]
@@ -771,23 +778,28 @@ FQIDAQAB
         let encrypted_data = encrypted_result.unwrap();
         assert_ne!(data, encrypted_data.as_slice());
 
-        // AES_CBC_PKCS7: output is IV (16 bytes) + ciphertext (multiple of block size, 16 bytes)
-        // So, length should be > data length and a multiple of 16 if data is not empty.
-        // More precisely, IV_SIZE + PADDED_DATA_SIZE
-        // PADDED_DATA_SIZE = ((data.len() / 16) + 1) * 16
-        let expected_min_len = 16 + (((data.len() / 16) + 1) * 16);
+        const AES_BLOCK_SIZE: usize = 16; // AES block size (16 bytes)
+        // AES_CBC_PKCS7: output is IV (`AES_IV_LENGTH` bytes) + ciphertext (multiple of block size, AES_BLOCK_SIZE bytes)
+        // PKCS7 padding: adds (AES_BLOCK_SIZE - (data.len() % AES_BLOCK_SIZE)) bytes
+        // If data.len() % AES_BLOCK_SIZE == 0, adds a full AES_BLOCK_SIZE bytes of padding
+        // More precisely, IV_SIZE + DATA_SIZE + PADDING_SIZE
+        let padding_needed = AES_BLOCK_SIZE - (data.len() % AES_BLOCK_SIZE);
+        let expected_exact_len = AES_IV_LENGTH + data.len() + padding_needed;
         assert_eq!(
             encrypted_data.len(),
-            expected_min_len,
+            expected_exact_len,
             "Encrypted data length is unexpected. Got {}, expected {}. Original data length: {}",
             encrypted_data.len(),
-            expected_min_len,
+            expected_exact_len,
             data.len()
         );
         assert!(
             encrypted_data.len() > data.len(),
             "Encrypted data should be longer than original data due to IV and padding."
         );
+
+        let iv = &encrypted_data[0..AES_IV_LENGTH];
+        assert_ne!(iv, &[0u8; AES_IV_LENGTH], "IV should not be all zeros");
     }
 
     #[test]
@@ -823,18 +835,6 @@ FQIDAQAB
         let encrypted1 = aes_encrypt(data, &key).unwrap();
         let encrypted2 = aes_encrypt(data, &key).unwrap();
         assert_ne!(encrypted1, encrypted2);
-    }
-
-    #[test]
-    fn aes_encrypt_includes_iv_in_result_when_successful() {
-        let data = b"test data";
-        let key = generate_aes_key().unwrap();
-
-        let result = aes_encrypt(data, &key).unwrap();
-        assert!(result.len() >= 16, "IV should be at least 16 bytes");
-
-        let iv = &result[0..16];
-        assert_ne!(iv, &[0u8; 16], "IV should not be all zeros");
     }
 
     #[test]
