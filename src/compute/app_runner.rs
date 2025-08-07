@@ -329,26 +329,6 @@ mod tests {
 
     // region start
     #[test]
-    fn start_return_valid_exit_code_when_ran() {
-        with_vars(
-            vec![(
-                TeeSessionEnvironmentVariable::IexecTaskId.name(),
-                Some(TEST_TASK_ID),
-            )],
-            || {
-                let result = start();
-                assert!(
-                    result == ExitMode::Success
-                        || result == ExitMode::ReportedFailure
-                        || result == ExitMode::UnreportedFailure
-                        || result == ExitMode::InitializationFailure,
-                    "start() should return a valid exit code: {result:?}"
-                );
-            },
-        );
-    }
-
-    #[test]
     fn start_return_3_when_task_id_missing() {
         with_vars(
             vec![(
