@@ -8,6 +8,19 @@ use crate::compute::{
 };
 use log::{error, info};
 
+/// Represents the different exit modes for a process or application.
+///
+/// Each variant is explicitly assigned an `i32` value, and the enum
+/// uses `#[repr(i32)]` to ensure its memory representation matches C-style enums.
+#[cfg_attr(test, derive(Debug, PartialEq))]
+#[repr(i32)]
+pub enum ExitMode {
+    Success = 0,
+    ReportedFailure = 1,
+    UnreportedFailure = 2,
+    InitializationFailure = 3,
+}
+
 /// Defines the interface for post-compute operations.
 ///
 /// This trait encapsulates the core functionality needed for running post-compute operations.
@@ -136,14 +149,6 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
 ///
 /// * `runner` - An implementation of [`PostComputeRunnerInterface`] that will be used to execute the post-compute operations.
 ///
-/// # Returns
-///
-/// * `i32` - An exit code indicating the result of the post-compute process:
-///   - 0: Success - The post-compute completed successfully
-///   - 1: Failure with reported cause - The post-compute failed but the cause was reported
-///   - 2: Failure with unreported cause - The post-compute failed and the cause could not be reported
-///   - 3: Failure due to missing taskID context - The post-compute could not start due to missing task ID
-///
 /// # Example
 ///
 /// ```
@@ -156,7 +161,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
 /// let custom_runner = MyCustomRunner::new();
 /// let exit_code = start_with_runner(&custom_runner);
 /// ```
-pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
+pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> ExitMode {
     println!("Tee worker post-compute started");
     let chain_task_id: String = match get_env_var_or_error(
         TeeSessionEnvironmentVariable::IexecTaskId,
@@ -168,13 +173,13 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
                 "TEE post-compute cannot go further without taskID context [errorMessage:{:?}]",
                 e
             );
-            return 3; // Exit code for missing taskID context
+            return ExitMode::InitializationFailure;
         }
     };
     match runner.run_post_compute(&chain_task_id) {
         Ok(()) => {
             info!("TEE post-compute completed");
-            0
+            ExitMode::Success
         }
         Err(exit_cause) => {
             error!(
@@ -189,17 +194,17 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
                         "Failed to retrieve authorization [taskId:{}]",
                         &chain_task_id
                     );
-                    return 2; // Exit code for unreported failure
+                    return ExitMode::UnreportedFailure;
                 }
             };
 
             let exit_message = ExitMessage::from(&exit_cause);
 
             match runner.send_exit_cause(&authorization, &chain_task_id, &exit_message) {
-                Ok(()) => 1, // Exit code for reported failure
+                Ok(()) => ExitMode::ReportedFailure,
                 Err(_) => {
                     error!("Failed to report exit cause [exitCause:{}]", &exit_cause);
-                    2 // Exit code for unreported failure
+                    ExitMode::UnreportedFailure
                 }
             }
         }
@@ -224,7 +229,7 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> i32 {
 /// let exit_code = start();
 /// std::process::exit(exit_code);
 /// ```
-pub fn start() -> i32 {
+pub fn start() -> ExitMode {
     let runner = DefaultPostComputeRunner::new();
     start_with_runner(&runner)
 }
@@ -326,23 +331,6 @@ mod tests {
 
     // region start
     #[test]
-    fn start_return_valid_exit_code_when_ran() {
-        with_vars(
-            vec![(
-                TeeSessionEnvironmentVariable::IexecTaskId.name(),
-                Some(TEST_TASK_ID),
-            )],
-            || {
-                let result = start();
-                assert!(
-                    result == 0 || result == 1 || result == 2 || result == 3,
-                    "start() should return a valid exit code"
-                );
-            },
-        );
-    }
-
-    #[test]
     fn start_return_3_when_task_id_missing() {
         with_vars(
             vec![(
@@ -352,7 +340,11 @@ mod tests {
             || {
                 let runner = MockRunner::new();
                 let result = start_with_runner(&runner);
-                assert_eq!(result, 3, "Should return 3 when chain task ID is missing");
+                assert_eq!(
+                    result,
+                    ExitMode::InitializationFailure,
+                    "Should return ExitMode::InitializationFailure when chain task ID is missing"
+                );
             },
         );
     }
@@ -364,7 +356,11 @@ mod tests {
             || {
                 let runner = MockRunner::new();
                 let result = start_with_runner(&runner);
-                assert_eq!(result, 3, "Should return 3 when chain task ID is empty");
+                assert_eq!(
+                    result,
+                    ExitMode::InitializationFailure,
+                    "Should return ExitMode::InitializationFailure when chain task ID is empty"
+                );
             },
         );
     }
@@ -379,7 +375,11 @@ mod tests {
             || {
                 let runner = MockRunner::new();
                 let result = start_with_runner(&runner);
-                assert_eq!(result, 0, "Should return 0 on successful execution");
+                assert_eq!(
+                    result,
+                    ExitMode::Success,
+                    "Should return ExitMode::Success on successful execution"
+                );
             },
         );
     }
@@ -398,8 +398,9 @@ mod tests {
 
                 let result = start_with_runner(&runner);
                 assert_eq!(
-                    result, 1,
-                    "Should return 1 when error is reported successfully"
+                    result,
+                    ExitMode::ReportedFailure,
+                    "Should return ExitMode::ReportedFailure when error is reported successfully"
                 );
             },
         );
@@ -417,8 +418,9 @@ mod tests {
 
                 let result = start_with_runner(&runner);
                 assert_eq!(
-                    result, 1,
-                    "Should return 1 when unknown error is reported successfully"
+                    result,
+                    ExitMode::ReportedFailure,
+                    "Should return ExitMode::ReportedFailure when unknown error is reported successfully"
                 );
             },
         );
@@ -439,7 +441,11 @@ mod tests {
                     .with_send_exit_cause_failure();
 
                 let result = start_with_runner(&runner);
-                assert_eq!(result, 2, "Should return 2 when error reporting fails");
+                assert_eq!(
+                    result,
+                    ExitMode::UnreportedFailure,
+                    "Should return ExitMode::UnreportedFailure when error reporting fails"
+                );
             },
         );
     }
@@ -459,7 +465,11 @@ mod tests {
                     .with_get_challenge_failure();
 
                 let result = start_with_runner(&runner);
-                assert_eq!(result, 2, "Should return 2 when signer service fails");
+                assert_eq!(
+                    result,
+                    ExitMode::UnreportedFailure,
+                    "Should return ExitMode::UnreportedFailure when signer service fails"
+                );
             },
         );
     }
