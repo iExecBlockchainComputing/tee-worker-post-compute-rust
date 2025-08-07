@@ -797,24 +797,6 @@ FQIDAQAB
             encrypted_data.len() > data.len(),
             "Encrypted data should be longer than original data due to IV and padding."
         );
-        assert!(
-            encrypted_data.len() >= AES_IV_LENGTH,
-            "IV should be at least {AES_IV_LENGTH} bytes"
-        );
-
-        let iv = &encrypted_data[0..AES_IV_LENGTH];
-        assert_ne!(iv, &[0u8; AES_IV_LENGTH], "IV should not be all zeros");
-        assert!(
-            encrypted_data.len() >= AES_IV_LENGTH,
-            "IV should be at least {AES_IV_LENGTH} bytes"
-        );
-
-        let iv = &encrypted_data[0..AES_IV_LENGTH];
-        assert_ne!(iv, &[0u8; AES_IV_LENGTH], "IV should not be all zeros");
-        assert!(
-            encrypted_data.len() >= AES_IV_LENGTH,
-            "IV should be at least {AES_IV_LENGTH} bytes"
-        );
 
         let iv = &encrypted_data[0..AES_IV_LENGTH];
         assert_ne!(iv, &[0u8; AES_IV_LENGTH], "IV should not be all zeros");
