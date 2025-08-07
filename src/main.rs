@@ -9,5 +9,5 @@ fn main() {
     Builder::from_env(Env::default().default_filter_or("info"))
         .target(Target::Stdout)
         .init();
-    process::exit(PostComputeRunner::start());
+    process::exit(PostComputeRunner::start() as i32);
 }

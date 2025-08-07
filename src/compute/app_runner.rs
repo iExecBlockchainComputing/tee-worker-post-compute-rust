@@ -8,13 +8,26 @@ use crate::compute::{
 };
 use log::{error, info};
 
+/// Represents the different exit modes for a process or application.
+///
+/// Each variant is explicitly assigned an `i32` value, and the enum
+/// uses `#[repr(i32)]` to ensure its memory representation matches C-style enums.
+#[cfg_attr(test, derive(Debug, PartialEq))]
+#[repr(i32)]
+pub enum ExitMode {
+    Success = 0,
+    ReportedFailure = 1,
+    UnreportedFailure = 2,
+    InitializationFailure = 3,
+}
+
 /// Defines the interface for post-compute operations.
 ///
 /// This trait encapsulates the core functionality needed for running post-compute operations.
 /// Implementations provide a `start` method that orchestrates the complete post-compute workflow
 /// and returns an exit code indicating the operation result.
 pub trait PostComputeService {
-    fn start() -> i32;
+    fn start() -> ExitMode;
 }
 
 /// Production implementation of [`PostComputeService`]
@@ -119,14 +132,6 @@ impl PostComputeService for PostComputeRunner {
     /// the computed file, handles result storage and uploading, and reports any errors
     /// that occur during execution.
     ///
-    /// # Returns
-    ///
-    /// * `i32` - An exit code indicating the result of the post-compute process:
-    ///   - `0`: Success - The post-compute completed successfully
-    ///   - `1`: Failure with reported cause - The post-compute failed but the error was reported to the worker API
-    ///   - `2`: Failure with unreported cause - The post-compute failed and the error could not be reported
-    ///   - `3`: Failure due to missing task ID - The post-compute could not start due to missing `IEXEC_TASK_ID`
-    ///
     /// # Example
     ///
     /// ```
@@ -136,7 +141,7 @@ impl PostComputeService for PostComputeRunner {
     /// let exit_code = PostComputeRunner::start();
     /// std::process::exit(exit_code);
     /// ```
-    fn start() -> i32 {
+    fn start() -> ExitMode {
         println!("Tee worker post-compute started");
         let chain_task_id: String = match get_env_var_or_error(
             TeeSessionEnvironmentVariable::IexecTaskId,
@@ -148,14 +153,14 @@ impl PostComputeService for PostComputeRunner {
                     "TEE post-compute cannot go further without taskID context [errorMessage:{:?}]",
                     e
                 );
-                return 3; // Exit code for missing taskID context
+                return ExitMode::InitializationFailure;
             }
         };
         let runner = PostComputeRunner::new();
         match runner.run_post_compute(&chain_task_id) {
             Ok(()) => {
                 info!("TEE post-compute completed");
-                0
+                ExitMode::Success
             }
             Err(error) => {
                 let exit_cause: ReplicateStatusCause;
@@ -181,7 +186,7 @@ impl PostComputeService for PostComputeRunner {
                             "Failed to retrieve authorization [taskId:{}]",
                             &chain_task_id
                         );
-                        return 2; // Exit code for unreported failure
+                        return ExitMode::UnreportedFailure;
                     }
                 };
 
@@ -192,10 +197,10 @@ impl PostComputeService for PostComputeRunner {
                         &chain_task_id,
                         &exit_cause,
                     ) {
-                    Ok(()) => 1, // Exit code for reported failure
+                    Ok(()) => ExitMode::ReportedFailure,
                     Err(_) => {
                         error!("Failed to report exit cause [exitCause:{}]", exit_cause);
-                        2 // Exit code for unreported failure
+                        ExitMode::UnreportedFailure
                     }
                 }
             }
@@ -343,7 +348,11 @@ mod tests {
             )],
             || {
                 let result = PostComputeRunner::start();
-                assert_eq!(result, 3, "Should return 3 when chain task ID is missing");
+                assert_eq!(
+                    result,
+                    ExitMode::InitializationFailure,
+                    "Should return ExitMode::InitializationFailure when chain task ID is missing"
+                );
             },
         );
     }
@@ -354,7 +363,11 @@ mod tests {
             vec![(TeeSessionEnvironmentVariable::IexecTaskId.name(), Some(""))],
             || {
                 let result = PostComputeRunner::start();
-                assert_eq!(result, 3, "Should return 3 when chain task ID is empty");
+                assert_eq!(
+                    result,
+                    ExitMode::InitializationFailure,
+                    "Should return ExitMode::InitializationFailure when chain task ID is empty"
+                );
             },
         );
     }
