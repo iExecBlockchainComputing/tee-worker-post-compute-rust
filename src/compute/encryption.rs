@@ -505,7 +505,7 @@ FQIDAQAB
             fs::read(&aes_key_file_in_dir).expect("Failed to read AES key file from dir");
         assert!(!aes_key_content_bytes.is_empty());
         // AES key is now stored as raw encrypted bytes, not Base64 string
-        assert_eq!(aes_key_content_bytes.len(), 256); // RSA-2048 produces 256-bits output
+        assert_eq!(aes_key_content_bytes.len(), 256); // RSA-2048 produces 256 bytes output
     }
 
     #[test]
@@ -613,7 +613,7 @@ FQIDAQAB
             assert_eq!(
                 aes_key_content_bytes.len(),
                 256,
-                "RSA-2048 produces 256-bits output"
+                "RSA-2048 produces 256 bytes output"
             );
         }
     }
