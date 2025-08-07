@@ -11,8 +11,10 @@ use rsa::{Pkcs1v15Encrypt, RsaPublicKey, pkcs8::DecodePublicKey};
 use sha3::{Digest, Sha3_256};
 use std::{fs, path::Path};
 
-const AES_KEY_LENGTH: usize = 32; // 256-bit key (32 bytes)
-const AES_IV_LENGTH: usize = 16; // 128-bit IV (16 bytes) same as the AES block size
+/// 256-bit key (32 bytes)
+const AES_KEY_LENGTH: usize = 32;
+/// 128-bit IV (16 bytes) same as the AES block size
+const AES_IV_LENGTH: usize = 16;
 
 /// Encrypts a data file using hybrid encryption (AES-256-CBC + RSA-2048).
 ///
