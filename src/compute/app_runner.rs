@@ -196,7 +196,6 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> ExitMode 
                 }
             };
 
-
             match runner.send_exit_cause(&authorization, &chain_task_id, &exit_cause) {
                 Ok(()) => ExitMode::ReportedFailure,
                 Err(_) => {
