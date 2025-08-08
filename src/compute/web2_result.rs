@@ -182,17 +182,17 @@ impl Web2ResultService {
 
                 zip.start_file(relative.to_string_lossy(), options)
                     .map_err(|e| {
-                        error!("Failed to add file to zip: {}", e);
+                        error!("Failed to add file to zip: {e}");
                         ReplicateStatusCause::PostComputeOutFolderZipFailed
                     })?;
 
                 let mut file = File::open(path).map_err(|e| {
-                    error!("Failed to open file for zipping: {}", e);
+                    error!("Failed to open file for zipping: {e}");
                     ReplicateStatusCause::PostComputeOutFolderZipFailed
                 })?;
 
                 io::copy(&mut file, zip).map_err(|e| {
-                    error!("Failed to copy file to zip: {}", e);
+                    error!("Failed to copy file to zip: {e}");
                     ReplicateStatusCause::PostComputeOutFolderZipFailed
                 })?;
 
@@ -245,7 +245,7 @@ impl Web2ResultInterface for Web2ResultService {
 
         // Clean up the temporary zip file
         if let Err(e) = fs::remove_file(&zip_path) {
-            error!("Failed to remove temporary zip file {}: {}", zip_path, e);
+            error!("Failed to remove temporary zip file {zip_path}: {e}");
             // We don't return an error here as the upload was successful
         };
 
@@ -273,7 +273,7 @@ impl Web2ResultInterface for Web2ResultService {
         iexec_out_path: &str,
     ) -> Result<(), ReplicateStatusCause> {
         if !Path::new(iexec_out_path).exists() {
-            error!("Can't check result files [chain_task_id: {}]", task_id);
+            error!("Can't check result files [chain_task_id: {task_id}]");
             return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
         }
 
@@ -292,10 +292,8 @@ impl Web2ResultInterface for Web2ResultService {
 
         for (file_name, path) in &long_filenames {
             error!(
-                "Too long result file name [chain_task_id:{}, file:{}, filename:{}]",
-                task_id,
-                path.display(),
-                file_name
+                "Too long result file name [chain_task_id:{task_id}, file:{}, filename:{file_name}]",
+                path.display()
             );
         }
 
@@ -331,7 +329,7 @@ impl Web2ResultInterface for Web2ResultService {
         let zip_path = PathBuf::from(save_in).join(zip_file_name);
 
         let file = File::create(&zip_path).map_err(|e| {
-            error!("Failed to create zip file: {}", e);
+            error!("Failed to create zip file: {e}");
             ReplicateStatusCause::PostComputeOutFolderZipFailed
         })?;
 
@@ -339,7 +337,7 @@ impl Web2ResultInterface for Web2ResultService {
         let options = FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
         self.add_directory_to_zip(&mut zip, source_path, options)?;
         zip.finish().map_err(|e| {
-            error!("Failed to finish zip file: {}", e);
+            error!("Failed to finish zip file: {e}");
             ReplicateStatusCause::PostComputeOutFolderZipFailed
         })?;
 
@@ -398,8 +396,7 @@ impl Web2ResultInterface for Web2ResultService {
                 Ok(parsed_value) => parsed_value,
                 Err(e) => {
                     error!(
-                        "Failed to parse RESULT_ENCRYPTION environment variable as a boolean, defaulting to false [callback_env_var:{}] : {}",
-                        value, e
+                        "Failed to parse RESULT_ENCRYPTION environment variable as a boolean, defaulting to false [callback_env_var:{value}]: {e}"
                     );
                     false
                 }
@@ -426,12 +423,12 @@ impl Web2ResultInterface for Web2ResultService {
                 Ok(key_bytes) => match String::from_utf8(key_bytes) {
                     Ok(key_string) => key_string,
                     Err(e) => {
-                        error!("Decoded key is not valid UTF-8: {}", e);
+                        error!("Decoded key is not valid UTF-8: {e}");
                         return Err(ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey);
                     }
                 },
                 Err(e) => {
-                    error!("Result encryption public key base64 decoding failed: {}", e);
+                    error!("Result encryption public key base64 decoding failed: {e}");
                     return Err(ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey);
                 }
             };
@@ -446,7 +443,7 @@ impl Web2ResultInterface for Web2ResultService {
                 Ok(file)
             }
             Err(e) => {
-                error!("Result encryption failed: {}", e);
+                error!("Result encryption failed: {e}");
                 Err(ReplicateStatusCause::PostComputeEncryptionFailed)
             }
         }
@@ -549,8 +546,7 @@ impl Web2ResultInterface for Web2ResultService {
 
         let file_to_upload = fs::read(file_to_upload_path).map_err(|e| {
             error!(
-                "Can't upload_to_ipfs_with_iexec_proxy (missing file_path to upload) [task_id:{}, file_to_upload_path:{}]: {}",
-                task_id, file_to_upload_path, e
+                "Can't upload_to_ipfs_with_iexec_proxy (missing file_path to upload) [task_id:{task_id}, file_to_upload_path:{file_to_upload_path}]: {e}"
             );
             ReplicateStatusCause::PostComputeResultFileNotFound
         })?;
@@ -568,8 +564,7 @@ impl Web2ResultInterface for Web2ResultService {
             Ok(ipfs_link) => Ok(ipfs_link),
             Err(e) => {
                 error!(
-                    "Can't upload_to_ipfs_with_iexec_proxy (result proxy issue) [task_id:{}]: {}",
-                    task_id, e
+                    "Can't upload_to_ipfs_with_iexec_proxy (result proxy issue) [task_id:{task_id}]: {e}"
                 );
                 Err(ReplicateStatusCause::PostComputeIpfsUploadFailed)
             }
@@ -1028,8 +1023,7 @@ mod tests {
                 let output_zip_path = Path::new(&output_zip_path_str);
                 assert!(
                     output_zip_path.exists(),
-                    "Encrypted zip file should exist at {}",
-                    output_zip_path_str
+                    "Encrypted zip file should exist at {output_zip_path_str}"
                 );
                 assert_eq!(output_zip_path.file_name().unwrap(), "iexec_out.zip");
                 assert_eq!(output_zip_path.parent().unwrap(), input_dir);
@@ -1094,9 +1088,7 @@ mod tests {
                     // and return the original file path instead of an error
                     assert!(
                         result.is_ok(),
-                        "Expected Ok for invalid value '{}' but got Err: {:?}",
-                        invalid_value,
-                        result
+                        "Expected Ok for invalid value '{invalid_value}' but got Err: {result:?}"
                     );
                     assert_eq!(
                         result.unwrap(),
@@ -1149,14 +1141,12 @@ mod tests {
                     let result = Web2ResultService.eventually_encrypt_result(file_path);
                     assert!(
                         result.is_ok(),
-                        "Should succeed when encryption disabled for value: {}",
-                        false_value
+                        "Should succeed when encryption disabled for value: {false_value}"
                     );
                     assert_eq!(
                         result.unwrap(),
                         file_path,
-                        "Should return original path for value: {}",
-                        false_value
+                        "Should return original path for value: {false_value}"
                     );
                 },
             );
@@ -1328,8 +1318,7 @@ mod tests {
                 let output_zip_path = Path::new(&output_zip_path_str);
                 assert!(
                     output_zip_path.exists(),
-                    "Encrypted zip file should exist at {}",
-                    output_zip_path_str
+                    "Encrypted zip file should exist at {output_zip_path_str}"
                 );
                 assert_eq!(output_zip_path.extension().unwrap_or_default(), "zip");
             },

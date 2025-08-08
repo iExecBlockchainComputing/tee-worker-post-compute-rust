@@ -287,7 +287,7 @@ mod tests {
                 .and(path("/v1/results"))
                 .respond_with(
                     ResponseTemplate::new(status_code)
-                        .set_body_string(format!("{} Error", status_code)),
+                        .set_body_string(format!("{status_code} Error")),
                 )
                 .mount(&mock_server)
                 .await;
@@ -302,18 +302,12 @@ mod tests {
 
             assert!(
                 result.is_err(),
-                "Expected error for status code {} ({})",
-                status_code,
-                description
+                "Expected error for status code {status_code} ({description})"
             );
             let error = result.unwrap_err();
             assert!(
                 error.to_string().contains(expected_error_contains),
-                "Error message should contain '{}' for status code {} ({}), but got: {}",
-                expected_error_contains,
-                status_code,
-                description,
-                error
+                "Error message should contain '{expected_error_contains}' for status code {status_code} ({description}), but got: {error}"
             );
         }
     }

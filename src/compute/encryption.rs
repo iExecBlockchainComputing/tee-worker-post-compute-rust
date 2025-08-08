@@ -96,16 +96,13 @@ pub fn encrypt_data(
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or_else(|| {
-            error!(
-                "Failed to extract filename from path: {}",
-                in_data_file_path
-            );
+            error!("Failed to extract filename from path: {in_data_file_path}");
             ReplicateStatusCause::PostComputeEncryptionFailed
         })?;
-    let out_encrypted_data_filename = format!("{}.aes", in_data_filename);
+    let out_encrypted_data_filename = format!("{in_data_filename}.aes");
 
     let work_dir = path.parent().and_then(|p| p.to_str()).ok_or_else(|| {
-        error!("Failed to get parent directory of: {}", in_data_file_path);
+        error!("Failed to get parent directory of: {in_data_file_path}");
         ReplicateStatusCause::PostComputeEncryptionFailed
     })?;
 
@@ -113,45 +110,32 @@ pub fn encrypt_data(
         path.file_stem()
             .and_then(|stem| stem.to_str())
             .ok_or_else(|| {
-                error!(
-                    "Failed to extract filename without extension from '{}'",
-                    in_data_file_path
-                );
+                error!("Failed to extract filename without extension from '{in_data_file_path}'");
                 ReplicateStatusCause::PostComputeEncryptionFailed
             })?;
-    let out_enc_dir = format!("{}/{}{}", work_dir, "encrypted-", filename_without_ext); //location of future encrypted files (./encrypted-0x1_result)
+    let out_enc_dir = format!("{work_dir}/encrypted-{filename_without_ext}"); //location of future encrypted files (./encrypted-0x1_result)
 
     // Get data to encrypt
     let data = fs::read(in_data_file_path).map_err(|e| {
         error!(
-            "Failed to encrypt_data (read_file error) [in_data_file_path:{}]: {}",
-            in_data_file_path, e
+            "Failed to encrypt_data (read_file error) [in_data_file_path:{in_data_file_path}]: {e}"
         );
         ReplicateStatusCause::PostComputeEncryptionFailed
     })?;
     if data.is_empty() {
-        error!(
-            "Failed to encrypt_data (empty file error) [in_data_file_path:{}]",
-            in_data_file_path
-        );
+        error!("Failed to encrypt_data (empty file error) [in_data_file_path:{in_data_file_path}]");
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
     }
 
     // Generate AES key for data encryption
     let aes_key = generate_aes_key().map_err(|_| {
-        error!(
-            "Failed to encrypt_data (generate_aes_key error) [in_data_file_path:{}]",
-            in_data_file_path
-        );
+        error!("Failed to encrypt_data (generate_aes_key error) [in_data_file_path:{in_data_file_path}]");
         ReplicateStatusCause::PostComputeEncryptionFailed
     })?;
 
     // Encrypt data with Base64 AES key
     let encrypted_data = aes_encrypt(&data, &aes_key).map_err(|e| {
-        error!(
-            "Failed to encrypt_data (aes_encrypt error) [in_data_file_path:{}]: {}",
-            in_data_file_path, e
-        );
+        error!("Failed to encrypt_data (aes_encrypt error) [in_data_file_path:{in_data_file_path}]: {e}");
         ReplicateStatusCause::PostComputeEncryptionFailed
     })?;
 
@@ -159,31 +143,25 @@ pub fn encrypt_data(
     let out_enc_dir_path = std::path::Path::new(&out_enc_dir);
     if !out_enc_dir_path.exists() {
         fs::create_dir_all(out_enc_dir_path).map_err(|e| {
-            error!(
-                "Failed to create directory '{}' (is_out_dir_created error) [in_data_file_path:{}]: {}",
-                out_enc_dir, in_data_file_path, e
-            );
+            error!("Failed to create directory '{out_enc_dir}' (is_out_dir_created error) [in_data_file_path:{in_data_file_path}]: {e}");
             ReplicateStatusCause::PostComputeEncryptionFailed
         })?;
     }
 
     // Store encrypted data in ./0xtask1 [out_enc_dir]
     write_file(
-        format!("{}/{}", &out_enc_dir, &out_encrypted_data_filename),
+        format!("{out_enc_dir}/{out_encrypted_data_filename}"),
         &encrypted_data,
     )
     .map_err(|_| {
-        error!(
-            "Failed to encrypt_data (is_encrypted_data_stored error) [in_data_file_path:{}]",
-            in_data_file_path
-        );
+        error!("Failed to encrypt_data (is_encrypted_data_stored error) [in_data_file_path:{in_data_file_path}]");
         ReplicateStatusCause::PostComputeEncryptionFailed
     })?;
 
     // Encrypt AES key with RSA public key
     let encrypted_aes_key = RsaPublicKey::from_public_key_pem(plain_text_rsa_pub)
         .map_err(|e| {
-            error!("Failed to parse RSA public key: {}", e);
+            error!("Failed to parse RSA public key: {e}");
             ReplicateStatusCause::PostComputeEncryptionFailed
         })?
         .encrypt(&mut OsRng, Pkcs1v15Encrypt, &aes_key)
@@ -194,14 +172,11 @@ pub fn encrypt_data(
 
     // Store encrypted AES key in ./0xtask1 [outEncDir]
     write_file(
-        format!("{}/{}", &out_enc_dir, "aes-key.rsa"),
+        format!("{out_enc_dir}/aes-key.rsa"),
         &encrypted_aes_key,
     )
     .map_err(|_| {
-        error!(
-            "Failed to encrypt_data (is_encrypted_aes_key_stored error) [in_data_file_path:{}]",
-            in_data_file_path
-        );
+        error!("Failed to encrypt_data (is_encrypted_aes_key_stored error) [in_data_file_path:{in_data_file_path}]");
         ReplicateStatusCause::PostComputeEncryptionFailed
     })?;
 
@@ -211,16 +186,12 @@ pub fn encrypt_data(
         let out_enc_zip = Web2ResultService
             .zip_iexec_out(&out_enc_dir, parent.to_str().unwrap())
             .map_err(|_| {
-                error!(
-                    "Failed to encrypt_data (out_enc_zip error) [in_data_file_path:{}]",
-                    in_data_file_path
-                );
+                error!("Failed to encrypt_data (out_enc_zip error) [in_data_file_path:{in_data_file_path}]");
                 ReplicateStatusCause::PostComputeEncryptionFailed
             })?;
         if out_enc_zip.is_empty() {
             error!(
-                "Failed to encrypt_data (out_enc_zip error) [in_data_file_path:{}]",
-                in_data_file_path
+                "Failed to encrypt_data (out_enc_zip error) [in_data_file_path:{in_data_file_path}]"
             );
             Err(ReplicateStatusCause::PostComputeEncryptionFailed)
         } else {
@@ -262,7 +233,7 @@ pub fn encrypt_data(
 pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
     let mut key_bytes = [0u8; AES_KEY_LENGTH];
     if let Err(e) = OsRng.try_fill_bytes(&mut key_bytes) {
-        error!("Failed to generate AES key: {}", e);
+        error!("Failed to generate AES key: {e}");
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
     }
     Ok(key_bytes.to_vec())
@@ -336,8 +307,7 @@ pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCa
     }
     if key.len() != AES_KEY_LENGTH {
         error!(
-            "AES encryption key must be {} bytes, got {}",
-            AES_KEY_LENGTH,
+            "AES encryption key must be {AES_KEY_LENGTH} bytes, got {}",
             key.len()
         );
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
@@ -346,7 +316,7 @@ pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCa
     // Generate random `AES_IV_LENGTH` bytes initialization vector
     let mut iv = [0u8; AES_IV_LENGTH];
     if let Err(e) = OsRng.try_fill_bytes(&mut iv) {
-        error!("Failed to generate IV for AES encryption: {}", e);
+        error!("Failed to generate IV for AES encryption: {e}");
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
     }
 
@@ -405,11 +375,8 @@ pub fn write_file(file_path: String, data: &[u8]) -> Result<(), ReplicateStatusC
         let mut hasher = Sha3_256::new();
         hasher.update(data);
         let hash = hasher.finalize();
-        let hash_hex = format!("{:x}", hash);
-        error!(
-            "Failed to write file [file_path:{}, data_hash:{}]: {}",
-            file_path, hash_hex, e
-        );
+        let hash_hex = format!("{hash:x}");
+        error!("Failed to write file [file_path:{file_path}, data_hash:{hash_hex}]: {e}");
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
     }
     Ok(())
@@ -459,8 +426,7 @@ FQIDAQAB
         let output_dir_path = Path::new(&output_dir_path_str);
         assert!(
             output_dir_path.exists(),
-            "Output directory should exist at {}",
-            output_dir_path_str
+            "Output directory should exist at {output_dir_path_str}"
         );
         assert!(
             output_dir_path.is_dir(),
@@ -536,8 +502,7 @@ FQIDAQAB
         let output_zip_path = Path::new(&output_zip_path_str);
         assert!(
             output_zip_path.exists(),
-            "Output zip file should exist at {}",
-            output_zip_path_str
+            "Output zip file should exist at {output_zip_path_str}"
         );
         assert_eq!(
             output_zip_path.extension().unwrap_or_default(),
@@ -577,8 +542,7 @@ FQIDAQAB
             let encrypted_data_entry = archive.by_name(&expected_encrypted_data_filename);
             assert!(
                 encrypted_data_entry.is_ok(),
-                "Encrypted data file '{}' not found in zip.",
-                expected_encrypted_data_filename
+                "Encrypted data file '{expected_encrypted_data_filename}' not found in zip."
             );
             let mut encrypted_data_file_in_zip = encrypted_data_entry.unwrap();
             let mut encrypted_content = Vec::new();
@@ -701,8 +665,7 @@ FQIDAQAB
         let output_zip_path = Path::new(&output_zip_path_str);
         assert!(
             output_zip_path.exists(),
-            "Encrypted zip file should exist at {}",
-            output_zip_path_str
+            "Encrypted zip file should exist at {output_zip_path_str}"
         );
         assert_eq!(output_zip_path.extension().unwrap_or_default(), "zip");
     }

@@ -4,7 +4,7 @@ use sha256::{Sha256Digest, digest};
 pub fn concatenate_and_hash(hexa_strings: &[&str]) -> String {
     let mut hasher = Keccak256::default();
     for hexa_string in hexa_strings {
-        println!("value {}", hexa_string);
+        println!("value {hexa_string}");
         hasher.update(hex_string_to_byte_array(hexa_string));
     }
     format!("0x{:x}", hasher.finalize())

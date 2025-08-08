@@ -67,8 +67,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
                 Ok(parsed_value) => parsed_value,
                 Err(_) => {
                     error!(
-                        "Failed to parse RESULT_STORAGE_CALLBACK environment variable as a boolean [callback_env_var:{}]",
-                        value
+                        "Failed to parse RESULT_STORAGE_CALLBACK environment variable as a boolean [callback_env_var:{value}]"
                     );
                     return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
                 }
@@ -107,10 +106,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
     }
 
     fn send_computed_file(&self, computed_file: &ComputedFile) -> Result<(), ReplicateStatusCause> {
-        info!(
-            "send_computed_file stage started [computedFile:{:#?}]",
-            &computed_file
-        );
+        info!("send_computed_file stage started [computedFile:{computed_file:#?}]");
         let task_id = match computed_file.task_id.as_ref() {
             Some(id) => id,
             None => {
@@ -129,7 +125,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
                 Ok(())
             }
             Err(_) => {
-                error!("send_computed_file stage failed [task_id:{}]", task_id);
+                error!("send_computed_file stage failed [task_id:{task_id}]");
                 Err(ReplicateStatusCause::PostComputeSendComputedFileFailed)
             }
         }
@@ -168,8 +164,7 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> ExitMode 
         Ok(id) => id,
         Err(e) => {
             error!(
-                "TEE post-compute cannot go further without taskID context [errorMessage:{:?}]",
-                e
+                "TEE post-compute cannot go further without taskID context [errorMessage:{e:?}]"
             );
             return ExitMode::InitializationFailure;
         }
@@ -180,18 +175,12 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> ExitMode 
             ExitMode::Success
         }
         Err(exit_cause) => {
-            error!(
-                "TEE post-compute failed with exit cause [errorMessage:{}]",
-                &exit_cause
-            );
+            error!("TEE post-compute failed with exit cause [errorMessage:{exit_cause}]");
 
             let authorization: String = match runner.get_challenge(&chain_task_id) {
                 Ok(challenge) => challenge,
                 Err(_) => {
-                    error!(
-                        "Failed to retrieve authorization [taskId:{}]",
-                        &chain_task_id
-                    );
+                    error!("Failed to retrieve authorization [taskId:{chain_task_id}]");
                     return ExitMode::UnreportedFailure;
                 }
             };
@@ -201,7 +190,7 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> ExitMode 
             match runner.send_exit_cause(&authorization, &chain_task_id, &exit_message) {
                 Ok(()) => ExitMode::ReportedFailure,
                 Err(_) => {
-                    error!("Failed to report exit cause [exitCause:{}]", &exit_cause);
+                    error!("Failed to report exit cause [exitCause:{exit_cause}]");
                     ExitMode::UnreportedFailure
                 }
             }
@@ -524,7 +513,7 @@ mod tests {
         let server_url = mock_server.uri();
 
         Mock::given(method("POST"))
-            .and(path(format!("/compute/post/{}/computed", TEST_TASK_ID)))
+            .and(path(format!("/compute/post/{TEST_TASK_ID}/computed")))
             .and(header("Authorization", TEST_CHALLENGE))
             .respond_with(ResponseTemplate::new(200))
             .expect(1)
@@ -578,7 +567,7 @@ mod tests {
         let server_url = mock_server.uri();
 
         Mock::given(method("POST"))
-            .and(path(format!("/compute/post/{}/computed", TEST_TASK_ID)))
+            .and(path(format!("/compute/post/{TEST_TASK_ID}/computed")))
             .and(header("Authorization", TEST_CHALLENGE))
             .respond_with(ResponseTemplate::new(500))
             .expect(1)
