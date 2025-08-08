@@ -1,0 +1,33 @@
+name: sconify
+
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      IMG_FROM: docker-regis.iex.ec/tee-worker-post-compute:rust
+      IMG_TO: docker-regis.iex.ec/tee-worker-post-compute-unlocked:rust-sconify-5.9.1-debug
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Build the docker image
+        run: docker build -t $IMG_FROM .
+      - name: Login to Scontain registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.scontain.com
+          username: ${{ secrets.SCONTAIN_USERNAME }}
+          password: ${{ secrets.SCONTAIN_PASSWORD }}
+      - name: Sconify
+        run: scone/sconify.sh
+      - name: Login to Docker regis
+        uses: docker/login-action@v3
+        with:
+          registry: docker-regis.iex.ec
+          username: ${{ secrets.NEXUS_USERNAME }}
+          password: ${{ secrets.NEXUS_PASSWORD }}
+      - name: Publish
+        run: docker push $IMG_TO
+      - name: Clean
+        run: docker image rm -f $IMG_FROM $IMG_TO registry.scontain.com/scone-debug/iexec-sconify-image-unlocked:5.9.1
