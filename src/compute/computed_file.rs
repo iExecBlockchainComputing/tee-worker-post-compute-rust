@@ -86,16 +86,14 @@ pub fn read_computed_file(
     info!("read_computed_file stage started");
     if chain_task_id.is_empty() {
         error!(
-            "Failed to read compute file (empty chain_task_id) [chain_task_id:{}, computed_file_dir:{}]",
-            chain_task_id, computed_file_dir
+            "Failed to read compute file (empty chain_task_id) [chain_task_id:{chain_task_id}, computed_file_dir:{computed_file_dir}]"
         );
         return Err(ReplicateStatusCause::PostComputeComputedFileNotFound);
     }
 
     if computed_file_dir.is_empty() {
         error!(
-            "Failed to read compute file (empty computed_file_dir) [chain_task_id:{}, computed_file_dir:{}]",
-            chain_task_id, computed_file_dir
+            "Failed to read compute file (empty computed_file_dir) [chain_task_id:{chain_task_id}, computed_file_dir:{computed_file_dir}]"
         );
         return Err(ReplicateStatusCause::PostComputeComputedFileNotFound);
     }
@@ -105,8 +103,7 @@ pub fn read_computed_file(
         Ok(content) => content,
         Err(e) => {
             error!(
-                "Failed to read compute file [chain_task_id:{}, computed_file_dir:{}, error:{}]",
-                chain_task_id, computed_file_dir, e
+                "Failed to read compute file [chain_task_id:{chain_task_id}, computed_file_dir:{computed_file_dir}, error:{e}]"
             );
             return Err(ReplicateStatusCause::PostComputeComputedFileNotFound);
         }
@@ -120,8 +117,7 @@ pub fn read_computed_file(
         }
         Err(_) => {
             error!(
-                "Failed to read compute file [chain_task_id:{}, computed_file_dir:{}]",
-                chain_task_id, computed_file_dir
+                "Failed to read compute file [chain_task_id:{chain_task_id}, computed_file_dir:{computed_file_dir}]"
             );
             Err(ReplicateStatusCause::PostComputeComputedFileNotFound)
         }

@@ -67,8 +67,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
                 Ok(parsed_value) => parsed_value,
                 Err(_) => {
                     error!(
-                        "Failed to parse RESULT_STORAGE_CALLBACK environment variable as a boolean [callback_env_var:{}]",
-                        value
+                        "Failed to parse RESULT_STORAGE_CALLBACK environment variable as a boolean [callback_env_var:{value}]"
                     );
                     return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
                 }
@@ -129,7 +128,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
                 Ok(())
             }
             Err(_) => {
-                error!("send_computed_file stage failed [task_id:{}]", task_id);
+                error!("send_computed_file stage failed [task_id:{task_id}]");
                 Err(ReplicateStatusCause::PostComputeSendComputedFileFailed)
             }
         }
@@ -168,8 +167,7 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> ExitMode 
         Ok(id) => id,
         Err(e) => {
             error!(
-                "TEE post-compute cannot go further without taskID context [errorMessage:{:?}]",
-                e
+                "TEE post-compute cannot go further without taskID context [errorMessage:{e:?}]"
             );
             return ExitMode::InitializationFailure;
         }

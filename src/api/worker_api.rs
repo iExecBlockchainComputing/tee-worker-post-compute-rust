@@ -154,14 +154,13 @@ impl WorkerApiClient {
                     let status = response.status();
                     let body = response.text().unwrap_or_default();
                     error!(
-                        "Failed to send exit cause to worker: [status:{:?}, body:{:#?}]",
-                        status, body
+                        "Failed to send exit cause to worker: [status:{status:?}, body:{body:#?}]"
                     );
                     Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
                 }
             }
             Err(e) => {
-                error!("An error occured while sending exit cause to worker: {}", e);
+                error!("An error occured while sending exit cause to worker: {e}");
                 Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
             }
         }
@@ -228,17 +227,13 @@ impl WorkerApiClient {
                     let status = response.status();
                     let body = response.text().unwrap_or_default();
                     error!(
-                        "Failed to send computed file to worker: [status:{:?}, body:{:#?}]",
-                        status, body
+                        "Failed to send computed file to worker: [status:{status:?}, body:{body:#?}]"
                     );
                     Err(ReplicateStatusCause::PostComputeSendComputedFileFailed)
                 }
             }
             Err(e) => {
-                error!(
-                    "An error occured while sending computed file to worker: {}",
-                    e
-                );
+                error!("An error occured while sending computed file to worker: {e}");
                 Err(ReplicateStatusCause::PostComputeSendComputedFileFailed)
             }
         }

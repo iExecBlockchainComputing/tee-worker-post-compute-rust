@@ -182,17 +182,17 @@ impl Web2ResultService {
 
                 zip.start_file(relative.to_string_lossy(), options)
                     .map_err(|e| {
-                        error!("Failed to add file to zip: {}", e);
+                        error!("Failed to add file to zip: {e}");
                         ReplicateStatusCause::PostComputeOutFolderZipFailed
                     })?;
 
                 let mut file = File::open(path).map_err(|e| {
-                    error!("Failed to open file for zipping: {}", e);
+                    error!("Failed to open file for zipping: {e}");
                     ReplicateStatusCause::PostComputeOutFolderZipFailed
                 })?;
 
                 io::copy(&mut file, zip).map_err(|e| {
-                    error!("Failed to copy file to zip: {}", e);
+                    error!("Failed to copy file to zip: {e}");
                     ReplicateStatusCause::PostComputeOutFolderZipFailed
                 })?;
 
@@ -331,7 +331,7 @@ impl Web2ResultInterface for Web2ResultService {
         let zip_path = PathBuf::from(save_in).join(zip_file_name);
 
         let file = File::create(&zip_path).map_err(|e| {
-            error!("Failed to create zip file: {}", e);
+            error!("Failed to create zip file: {e}");
             ReplicateStatusCause::PostComputeOutFolderZipFailed
         })?;
 
@@ -339,7 +339,7 @@ impl Web2ResultInterface for Web2ResultService {
         let options = FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
         self.add_directory_to_zip(&mut zip, source_path, options)?;
         zip.finish().map_err(|e| {
-            error!("Failed to finish zip file: {}", e);
+            error!("Failed to finish zip file: {e}");
             ReplicateStatusCause::PostComputeOutFolderZipFailed
         })?;
 
@@ -426,12 +426,12 @@ impl Web2ResultInterface for Web2ResultService {
                 Ok(key_bytes) => match String::from_utf8(key_bytes) {
                     Ok(key_string) => key_string,
                     Err(e) => {
-                        error!("Decoded key is not valid UTF-8: {}", e);
+                        error!("Decoded key is not valid UTF-8: {e}");
                         return Err(ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey);
                     }
                 },
                 Err(e) => {
-                    error!("Result encryption public key base64 decoding failed: {}", e);
+                    error!("Result encryption public key base64 decoding failed: {e}");
                     return Err(ReplicateStatusCause::PostComputeMalformedEncryptionPublicKey);
                 }
             };
@@ -446,7 +446,7 @@ impl Web2ResultInterface for Web2ResultService {
                 Ok(file)
             }
             Err(e) => {
-                error!("Result encryption failed: {}", e);
+                error!("Result encryption failed: {e}");
                 Err(ReplicateStatusCause::PostComputeEncryptionFailed)
             }
         }
@@ -549,8 +549,7 @@ impl Web2ResultInterface for Web2ResultService {
 
         let file_to_upload = fs::read(file_to_upload_path).map_err(|e| {
             error!(
-                "Can't upload_to_ipfs_with_iexec_proxy (missing file_path to upload) [task_id:{}, file_to_upload_path:{}]: {}",
-                task_id, file_to_upload_path, e
+                "Can't upload_to_ipfs_with_iexec_proxy (missing file_path to upload) [task_id:{task_id}, file_to_upload_path:{file_to_upload_path}]: {e}"
             );
             ReplicateStatusCause::PostComputeResultFileNotFound
         })?;
@@ -568,8 +567,7 @@ impl Web2ResultInterface for Web2ResultService {
             Ok(ipfs_link) => Ok(ipfs_link),
             Err(e) => {
                 error!(
-                    "Can't upload_to_ipfs_with_iexec_proxy (result proxy issue) [task_id:{}]: {}",
-                    task_id, e
+                    "Can't upload_to_ipfs_with_iexec_proxy (result proxy issue) [task_id:{task_id}]: {e}"
                 );
                 Err(ReplicateStatusCause::PostComputeIpfsUploadFailed)
             }
