@@ -81,9 +81,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
             ComputedFileService.read_computed_file(chain_task_id, "/iexec_out")?;
         ComputedFileService
             .build_result_digest_in_computed_file(&mut computed_file, should_callback)?;
-        ComputedFileService
-            .sign_computed_file(&mut computed_file)
-            .map_err(Box::new)?;
+        ComputedFileService.sign_computed_file(&mut computed_file)?;
 
         if !should_callback {
             Web2ResultService.encrypt_and_upload_result(&computed_file)?;
