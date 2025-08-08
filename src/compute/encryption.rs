@@ -99,7 +99,7 @@ pub fn encrypt_data(
             error!("Failed to extract filename from path: {in_data_file_path}");
             ReplicateStatusCause::PostComputeEncryptionFailed
         })?;
-    let out_encrypted_data_filename = format!("{}.aes", in_data_filename);
+    let out_encrypted_data_filename = format!("{in_data_filename}.aes");
 
     let work_dir = path.parent().and_then(|p| p.to_str()).ok_or_else(|| {
         error!("Failed to get parent directory of: {in_data_file_path}");
@@ -113,7 +113,7 @@ pub fn encrypt_data(
                 error!("Failed to extract filename without extension from '{in_data_file_path}'");
                 ReplicateStatusCause::PostComputeEncryptionFailed
             })?;
-    let out_enc_dir = format!("{}/{}{}", work_dir, "encrypted-", filename_without_ext); //location of future encrypted files (./encrypted-0x1_result)
+    let out_enc_dir = format!("{work_dir}/encrypted-{filename_without_ext}"); //location of future encrypted files (./encrypted-0x1_result)
 
     // Get data to encrypt
     let data = fs::read(in_data_file_path).map_err(|e| {
@@ -172,7 +172,7 @@ pub fn encrypt_data(
 
     // Store encrypted AES key in ./0xtask1 [outEncDir]
     write_file(
-        format!("{}/{}", &out_enc_dir, "aes-key.rsa"),
+        format!("{}/aes-key.rsa", &out_enc_dir),
         &encrypted_aes_key,
     )
     .map_err(|_| {
@@ -376,7 +376,7 @@ pub fn write_file(file_path: String, data: &[u8]) -> Result<(), ReplicateStatusC
         let mut hasher = Sha3_256::new();
         hasher.update(data);
         let hash = hasher.finalize();
-        let hash_hex = format!("{:x}", hash);
+        let hash_hex = format!("{hash:x}");
         error!("Failed to write file [file_path:{file_path}, data_hash:{hash_hex}]: {e}");
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);
     }
@@ -427,8 +427,7 @@ FQIDAQAB
         let output_dir_path = Path::new(&output_dir_path_str);
         assert!(
             output_dir_path.exists(),
-            "Output directory should exist at {}",
-            output_dir_path_str
+            "Output directory should exist at {output_dir_path_str}"
         );
         assert!(
             output_dir_path.is_dir(),
@@ -504,8 +503,7 @@ FQIDAQAB
         let output_zip_path = Path::new(&output_zip_path_str);
         assert!(
             output_zip_path.exists(),
-            "Output zip file should exist at {}",
-            output_zip_path_str
+            "Output zip file should exist at {output_zip_path_str}"
         );
         assert_eq!(
             output_zip_path.extension().unwrap_or_default(),
@@ -545,8 +543,7 @@ FQIDAQAB
             let encrypted_data_entry = archive.by_name(&expected_encrypted_data_filename);
             assert!(
                 encrypted_data_entry.is_ok(),
-                "Encrypted data file '{}' not found in zip.",
-                expected_encrypted_data_filename
+                "Encrypted data file '{expected_encrypted_data_filename}' not found in zip."
             );
             let mut encrypted_data_file_in_zip = encrypted_data_entry.unwrap();
             let mut encrypted_content = Vec::new();
@@ -669,8 +666,7 @@ FQIDAQAB
         let output_zip_path = Path::new(&output_zip_path_str);
         assert!(
             output_zip_path.exists(),
-            "Encrypted zip file should exist at {}",
-            output_zip_path_str
+            "Encrypted zip file should exist at {output_zip_path_str}"
         );
         assert_eq!(output_zip_path.extension().unwrap_or_default(), "zip");
     }

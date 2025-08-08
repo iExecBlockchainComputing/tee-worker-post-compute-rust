@@ -245,7 +245,7 @@ impl Web2ResultInterface for Web2ResultService {
 
         // Clean up the temporary zip file
         if let Err(e) = fs::remove_file(&zip_path) {
-            error!("Failed to remove temporary zip file {}: {}", zip_path, e);
+            error!("Failed to remove temporary zip file {zip_path}: {e}");
             // We don't return an error here as the upload was successful
         };
 
@@ -273,7 +273,7 @@ impl Web2ResultInterface for Web2ResultService {
         iexec_out_path: &str,
     ) -> Result<(), ReplicateStatusCause> {
         if !Path::new(iexec_out_path).exists() {
-            error!("Can't check result files [chain_task_id: {}]", task_id);
+            error!("Can't check result files [chain_task_id: {task_id}]");
             return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
         }
 
@@ -292,10 +292,8 @@ impl Web2ResultInterface for Web2ResultService {
 
         for (file_name, path) in &long_filenames {
             error!(
-                "Too long result file name [chain_task_id:{}, file:{}, filename:{}]",
-                task_id,
-                path.display(),
-                file_name
+                "Too long result file name [chain_task_id:{task_id}, file:{}, filename:{file_name}]",
+                path.display()
             );
         }
 
@@ -398,8 +396,7 @@ impl Web2ResultInterface for Web2ResultService {
                 Ok(parsed_value) => parsed_value,
                 Err(e) => {
                     error!(
-                        "Failed to parse RESULT_ENCRYPTION environment variable as a boolean, defaulting to false [callback_env_var:{}] : {}",
-                        value, e
+                        "Failed to parse RESULT_ENCRYPTION environment variable as a boolean, defaulting to false [callback_env_var:{value}]: {e}"
                     );
                     false
                 }
@@ -1026,8 +1023,7 @@ mod tests {
                 let output_zip_path = Path::new(&output_zip_path_str);
                 assert!(
                     output_zip_path.exists(),
-                    "Encrypted zip file should exist at {}",
-                    output_zip_path_str
+                    "Encrypted zip file should exist at {output_zip_path_str}"
                 );
                 assert_eq!(output_zip_path.file_name().unwrap(), "iexec_out.zip");
                 assert_eq!(output_zip_path.parent().unwrap(), input_dir);
@@ -1092,9 +1088,7 @@ mod tests {
                     // and return the original file path instead of an error
                     assert!(
                         result.is_ok(),
-                        "Expected Ok for invalid value '{}' but got Err: {:?}",
-                        invalid_value,
-                        result
+                        "Expected Ok for invalid value '{invalid_value}' but got Err: {result:?}"
                     );
                     assert_eq!(
                         result.unwrap(),
@@ -1147,14 +1141,12 @@ mod tests {
                     let result = Web2ResultService.eventually_encrypt_result(file_path);
                     assert!(
                         result.is_ok(),
-                        "Should succeed when encryption disabled for value: {}",
-                        false_value
+                        "Should succeed when encryption disabled for value: {false_value}"
                     );
                     assert_eq!(
                         result.unwrap(),
                         file_path,
-                        "Should return original path for value: {}",
-                        false_value
+                        "Should return original path for value: {false_value}"
                     );
                 },
             );
@@ -1326,8 +1318,7 @@ mod tests {
                 let output_zip_path = Path::new(&output_zip_path_str);
                 assert!(
                     output_zip_path.exists(),
-                    "Encrypted zip file should exist at {}",
-                    output_zip_path_str
+                    "Encrypted zip file should exist at {output_zip_path_str}"
                 );
                 assert_eq!(output_zip_path.extension().unwrap_or_default(), "zip");
             },

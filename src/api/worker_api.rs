@@ -303,7 +303,7 @@ mod tests {
     fn should_get_worker_api_client_without_env_var() {
         with_vars(vec![(WorkerHostEnvVar.name(), None::<&str>)], || {
             let client = WorkerApiClient::from_env();
-            assert_eq!(client.base_url, format!("http://{}", DEFAULT_WORKER_HOST));
+            assert_eq!(client.base_url, format!("http://{DEFAULT_WORKER_HOST}"));
         });
     }
     // endregion
@@ -319,7 +319,7 @@ mod tests {
         });
 
         Mock::given(method("POST"))
-            .and(path(format!("/compute/post/{}/exit", CHAIN_TASK_ID)))
+            .and(path(format!("/compute/post/{CHAIN_TASK_ID}/exit")))
             .and(header("Authorization", CHALLENGE))
             .and(body_json(&expected_body))
             .respond_with(ResponseTemplate::new(200))
@@ -354,7 +354,7 @@ mod tests {
         let server_url = mock_server.uri();
 
         Mock::given(method("POST"))
-            .and(path(format!("/compute/post/{}/exit", CHAIN_TASK_ID)))
+            .and(path(format!("/compute/post/{CHAIN_TASK_ID}/exit")))
             .respond_with(ResponseTemplate::new(404))
             .expect(1)
             .mount(&mock_server)
@@ -379,8 +379,7 @@ mod tests {
             assert_eq!(
                 error,
                 ReplicateStatusCause::PostComputeFailedUnknownIssue,
-                "Expected PostComputeFailedUnknownIssue, got: {:?}",
-                error
+                "Expected PostComputeFailedUnknownIssue, got: {error:?}"
             );
         }
         let mut logger = TEST_LOGGER.lock().unwrap();
@@ -408,7 +407,7 @@ mod tests {
             ..Default::default()
         };
 
-        let expected_path = format!("/compute/post/{}/computed", CHAIN_TASK_ID);
+        let expected_path = format!("/compute/post/{CHAIN_TASK_ID}/computed");
         let expected_body = json!(computed_file);
 
         Mock::given(method("POST"))
@@ -446,7 +445,7 @@ mod tests {
             enclave_signature: Some("0xsignature".to_string()),
             ..Default::default()
         };
-        let expected_path = format!("/compute/post/{}/computed", CHAIN_TASK_ID);
+        let expected_path = format!("/compute/post/{CHAIN_TASK_ID}/computed");
         let expected_body = json!(computed_file);
 
         Mock::given(method("POST"))
@@ -470,8 +469,7 @@ mod tests {
             assert_eq!(
                 error,
                 ReplicateStatusCause::PostComputeSendComputedFileFailed,
-                "Expected PostComputeSendComputedFileFailed, got: {:?}",
-                error
+                "Expected PostComputeSendComputedFileFailed, got: {error:?}"
             );
         }
         let mut logger = TEST_LOGGER.lock().unwrap();
@@ -513,8 +511,7 @@ mod tests {
             assert_eq!(
                 error,
                 ReplicateStatusCause::PostComputeSendComputedFileFailed,
-                "Expected PostComputeSendComputedFileFailed, got: {:?}",
-                error
+                "Expected PostComputeSendComputedFileFailed, got: {error:?}"
             );
         }
         let mut logger = TEST_LOGGER.lock().unwrap();
@@ -538,7 +535,7 @@ mod tests {
             ..Default::default()
         };
 
-        let expected_path = format!("/compute/post/{}/computed", CHAIN_TASK_ID);
+        let expected_path = format!("/compute/post/{CHAIN_TASK_ID}/computed");
         let expected_body = json!(computed_file);
 
         Mock::given(method("POST"))

@@ -522,7 +522,7 @@ mod tests {
         let server_url = mock_server.uri();
 
         Mock::given(method("POST"))
-            .and(path(format!("/compute/post/{}/computed", TEST_TASK_ID)))
+            .and(path(format!("/compute/post/{TEST_TASK_ID}/computed")))
             .and(header("Authorization", TEST_CHALLENGE))
             .respond_with(ResponseTemplate::new(200))
             .expect(1)
@@ -576,7 +576,7 @@ mod tests {
         let server_url = mock_server.uri();
 
         Mock::given(method("POST"))
-            .and(path(format!("/compute/post/{}/computed", TEST_TASK_ID)))
+            .and(path(format!("/compute/post/{TEST_TASK_ID}/computed")))
             .and(header("Authorization", TEST_CHALLENGE))
             .respond_with(ResponseTemplate::new(500))
             .expect(1)
