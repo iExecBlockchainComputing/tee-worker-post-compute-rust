@@ -150,7 +150,7 @@ pub fn encrypt_data(
 
     // Store encrypted data in ./0xtask1 [out_enc_dir]
     write_file(
-        format!("{}/{}", &out_enc_dir, &out_encrypted_data_filename),
+        format!("{out_enc_dir}/{out_encrypted_data_filename}"),
         &encrypted_data,
     )
     .map_err(|_| {
@@ -172,7 +172,7 @@ pub fn encrypt_data(
 
     // Store encrypted AES key in ./0xtask1 [outEncDir]
     write_file(
-        format!("{}/aes-key.rsa", &out_enc_dir),
+        format!("{out_enc_dir}/aes-key.rsa"),
         &encrypted_aes_key,
     )
     .map_err(|_| {
@@ -307,8 +307,7 @@ pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCa
     }
     if key.len() != AES_KEY_LENGTH {
         error!(
-            "AES encryption key must be {} bytes, got {}",
-            AES_KEY_LENGTH,
+            "AES encryption key must be {AES_KEY_LENGTH} bytes, got {}",
             key.len()
         );
         return Err(ReplicateStatusCause::PostComputeEncryptionFailed);

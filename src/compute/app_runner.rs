@@ -106,10 +106,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
     }
 
     fn send_computed_file(&self, computed_file: &ComputedFile) -> Result<(), ReplicateStatusCause> {
-        info!(
-            "send_computed_file stage started [computedFile:{:#?}]",
-            &computed_file
-        );
+        info!("send_computed_file stage started [computedFile:{computed_file:#?}]");
         let task_id = match computed_file.task_id.as_ref() {
             Some(id) => id,
             None => {
@@ -178,18 +175,12 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> ExitMode 
             ExitMode::Success
         }
         Err(exit_cause) => {
-            error!(
-                "TEE post-compute failed with exit cause [errorMessage:{}]",
-                &exit_cause
-            );
+            error!("TEE post-compute failed with exit cause [errorMessage:{exit_cause}]");
 
             let authorization: String = match runner.get_challenge(&chain_task_id) {
                 Ok(challenge) => challenge,
                 Err(_) => {
-                    error!(
-                        "Failed to retrieve authorization [taskId:{}]",
-                        &chain_task_id
-                    );
+                    error!("Failed to retrieve authorization [taskId:{chain_task_id}]");
                     return ExitMode::UnreportedFailure;
                 }
             };
@@ -199,7 +190,7 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> ExitMode 
             match runner.send_exit_cause(&authorization, &chain_task_id, &exit_message) {
                 Ok(()) => ExitMode::ReportedFailure,
                 Err(_) => {
-                    error!("Failed to report exit cause [exitCause:{}]", &exit_cause);
+                    error!("Failed to report exit cause [exitCause:{exit_cause}]");
                     ExitMode::UnreportedFailure
                 }
             }

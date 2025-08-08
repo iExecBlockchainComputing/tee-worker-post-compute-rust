@@ -90,7 +90,7 @@ impl WorkerApiClient {
         )
         .unwrap_or_else(|_| DEFAULT_WORKER_HOST.to_string());
 
-        let base_url = format!("http://{}", &worker_host);
+        let base_url = format!("http://{worker_host}");
         Self::new(&base_url)
     }
 
@@ -139,7 +139,7 @@ impl WorkerApiClient {
         chain_task_id: &str,
         exit_cause: &ExitMessage,
     ) -> Result<(), ReplicateStatusCause> {
-        let url = format!("{}/compute/post/{}/exit", self.base_url, chain_task_id);
+        let url = format!("{}/compute/post/{chain_task_id}/exit", self.base_url);
         match self
             .client
             .post(&url)
@@ -212,7 +212,7 @@ impl WorkerApiClient {
         chain_task_id: &str,
         computed_file: &ComputedFile,
     ) -> Result<(), ReplicateStatusCause> {
-        let url = format!("{}/compute/post/{}/computed", self.base_url, chain_task_id);
+        let url = format!("{}/compute/post/{chain_task_id}/computed", self.base_url);
         match self
             .client
             .post(&url)
