@@ -174,7 +174,10 @@ impl PostComputeService for PostComputeRunner {
                     }
                     _ => {
                         exit_cause = error;
-                        error!("TEE post-compute failed without explicit exit cause");
+                        error!(
+                            "TEE post-compute failed with exit cause [errorMessage:{}]",
+                            &exit_cause
+                        );
                     }
                 }
 
@@ -261,9 +264,9 @@ mod tests {
                         return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
                     }
                 },
-                Err(_) => {
+                Err(e) => {
                     error!("Failed to get RESULT_STORAGE_CALLBACK environment variable");
-                    return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
+                    return Err(e);
                 }
             };
 
@@ -322,23 +325,6 @@ mod tests {
     }
 
     // region start tests
-    #[test]
-    fn start_returns_valid_exit_code_when_ran() {
-        with_vars(
-            vec![(
-                TeeSessionEnvironmentVariable::IexecTaskId.name(),
-                Some(TEST_TASK_ID),
-            )],
-            || {
-                let result = PostComputeRunner::start();
-                assert!(
-                    result == 0 || result == 1 || result == 2 || result == 3,
-                    "start() should return a valid exit code"
-                );
-            },
-        );
-    }
-
     #[test]
     fn start_returns_3_when_task_id_missing() {
         with_vars(
