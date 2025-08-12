@@ -509,6 +509,7 @@ impl Web2ResultInterface for Web2ResultService {
     ///
     /// * `Ok(String)` - The storage link where the result was uploaded
     /// * `Err(ReplicateStatusCause)` - Upload failed
+    #[allow(clippy::wildcard_in_or_patterns)]
     fn upload_result(
         &self,
         computed_file: &ComputedFile,
@@ -522,28 +523,18 @@ impl Web2ResultInterface for Web2ResultService {
         )?;
 
         let result_link = match storage_provider.as_str() {
-            IPFS_RESULT_STORAGE_PROVIDER => {
-                info!("Upload stage mode: IPFS_STORAGE");
-                let storage_proxy = get_env_var_or_error(
-                    TeeSessionEnvironmentVariable::ResultStorageProxy,
-                    ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
-                )?;
-                self.upload_to_ipfs_with_iexec_proxy(
-                    computed_file,
-                    &storage_proxy,
-                    &storage_token,
-                    file_to_upload_path,
-                )?
-            }
             DROPBOX_RESULT_STORAGE_PROVIDER => {
                 info!("Upload stage mode: DROPBOX_STORAGE");
                 self.upload_to_dropbox(computed_file, &storage_token, file_to_upload_path)?
             }
-            _ => {
-                info!(
-                    "Unknown storage provider '{storage_provider}', falling back to IPFS [task_id:{}]",
-                    computed_file.task_id.as_ref().unwrap()
-                );
+            IPFS_RESULT_STORAGE_PROVIDER | _ => {
+                if storage_provider.is_empty() {
+                    info!(
+                        "Unknown storage provider '{storage_provider}', falling back to IPFS [task_id:{}]",
+                        computed_file.task_id.as_ref().unwrap()
+                    );
+                }
+                info!("Upload stage mode: IPFS_STORAGE");
                 let storage_proxy = get_env_var_or_error(
                     TeeSessionEnvironmentVariable::ResultStorageProxy,
                     ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
@@ -1458,28 +1449,18 @@ mod tests {
             ReplicateStatusCause::PostComputeStorageTokenMissing,
         )?;
         let result_link = match storage_provider.as_str() {
-            IPFS_RESULT_STORAGE_PROVIDER => {
-                info!("Upload stage mode: IPFS_STORAGE");
-                let storage_proxy = get_env_var_or_error(
-                    TeeSessionEnvironmentVariable::ResultStorageProxy,
-                    ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
-                )?;
-                service.upload_to_ipfs_with_iexec_proxy(
-                    computed_file,
-                    &storage_proxy,
-                    &storage_token,
-                    file_to_upload_path,
-                )?
-            }
             DROPBOX_RESULT_STORAGE_PROVIDER => {
                 info!("Upload stage mode: DROPBOX_STORAGE");
                 service.upload_to_dropbox(computed_file, &storage_token, file_to_upload_path)?
             }
-            _ => {
-                info!(
-                    "Unknown storage provider '{storage_provider}', falling back to IPFS [task_id:{}]",
-                    computed_file.task_id.as_ref().unwrap()
-                );
+            IPFS_RESULT_STORAGE_PROVIDER | _ => {
+                if storage_provider.is_empty() {
+                    info!(
+                        "Unknown storage provider '{storage_provider}', falling back to IPFS [task_id:{}]",
+                        computed_file.task_id.as_ref().unwrap()
+                    );
+                }
+                info!("Upload stage mode: IPFS_STORAGE");
                 let storage_proxy = get_env_var_or_error(
                     TeeSessionEnvironmentVariable::ResultStorageProxy,
                     ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
