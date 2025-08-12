@@ -1649,7 +1649,7 @@ mod tests {
 
                 let _ =
                     run_upload_result(&mock_service, &computed_file, file_path.to_str().unwrap());
-            }
+            },
         );
     }
     // endregion
