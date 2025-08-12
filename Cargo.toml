@@ -21,6 +21,7 @@ sha3 = "0.10.8"
 thiserror = "2.0.12"
 walkdir = "2.5.0"
 zip = "4.0.0"
+dropbox-sdk = { version = "0.19.1", default-features = false, features = ["default_client", "dbx_files"] }
 
 [dev-dependencies]
 logtest = "2.0.0"
