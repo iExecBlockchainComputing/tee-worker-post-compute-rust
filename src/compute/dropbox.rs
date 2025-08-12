@@ -240,7 +240,10 @@ mod tests {
             "/results/test.zip",
             DROPBOX_CONTENT_BASE_URL,
         );
-        assert_eq!(result, Err(ReplicateStatusCause::PostComputeResultFileNotFound));
+        assert_eq!(
+            result,
+            Err(ReplicateStatusCause::PostComputeResultFileNotFound)
+        );
     }
 
     #[tokio::test]
