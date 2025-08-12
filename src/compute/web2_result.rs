@@ -515,14 +515,7 @@ impl Web2ResultInterface for Web2ResultService {
         file_to_upload_path: &str,
     ) -> Result<String, ReplicateStatusCause> {
         info!("Upload stage started");
-        let storage_provider = get_env_var_or_error(
-            TeeSessionEnvironmentVariable::ResultStorageProvider,
-            ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
-        )?;
-        let storage_proxy = get_env_var_or_error(
-            TeeSessionEnvironmentVariable::ResultStorageProxy,
-            ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
-        )?;
+        let storage_provider = get_env_var(TeeSessionEnvironmentVariable::ResultStorageProvider);
         let storage_token = get_env_var_or_error(
             TeeSessionEnvironmentVariable::ResultStorageToken,
             ReplicateStatusCause::PostComputeStorageTokenMissing,
@@ -531,6 +524,10 @@ impl Web2ResultInterface for Web2ResultService {
         let result_link = match storage_provider.as_str() {
             IPFS_RESULT_STORAGE_PROVIDER => {
                 info!("Upload stage mode: IPFS_STORAGE");
+                let storage_proxy = get_env_var_or_error(
+                    TeeSessionEnvironmentVariable::ResultStorageProxy,
+                    ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
+                )?;
                 self.upload_to_ipfs_with_iexec_proxy(
                     computed_file,
                     &storage_proxy,
@@ -547,6 +544,10 @@ impl Web2ResultInterface for Web2ResultService {
                     "Unknown storage provider '{storage_provider}', falling back to IPFS [task_id:{}]",
                     computed_file.task_id.as_ref().unwrap()
                 );
+                let storage_proxy = get_env_var_or_error(
+                    TeeSessionEnvironmentVariable::ResultStorageProxy,
+                    ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
+                )?;
                 self.upload_to_ipfs_with_iexec_proxy(
                     computed_file,
                     &storage_proxy,
