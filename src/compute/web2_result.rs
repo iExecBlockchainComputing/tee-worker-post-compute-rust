@@ -4,7 +4,7 @@ use crate::compute::{
     dropbox::{DROPBOX_CONTENT_BASE_URL, DropboxService, DropboxUploader},
     encryption::encrypt_data,
     errors::ReplicateStatusCause,
-    utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
+    utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var, get_env_var_or_error},
 };
 use base64::{Engine as _, engine::general_purpose};
 use log::{debug, error, info};
@@ -1452,25 +1452,38 @@ mod tests {
         file_to_upload_path: &str,
     ) -> Result<String, ReplicateStatusCause> {
         info!("Upload stage started");
-        let storage_provider = get_env_var_or_error(
-            TeeSessionEnvironmentVariable::ResultStorageProvider,
-            ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
-        )?;
-        let storage_proxy = get_env_var_or_error(
-            TeeSessionEnvironmentVariable::ResultStorageProxy,
-            ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
-        )?;
+        let storage_provider = get_env_var(TeeSessionEnvironmentVariable::ResultStorageProvider);
         let storage_token = get_env_var_or_error(
             TeeSessionEnvironmentVariable::ResultStorageToken,
             ReplicateStatusCause::PostComputeStorageTokenMissing,
         )?;
         let result_link = match storage_provider.as_str() {
+            IPFS_RESULT_STORAGE_PROVIDER => {
+                info!("Upload stage mode: IPFS_STORAGE");
+                let storage_proxy = get_env_var_or_error(
+                    TeeSessionEnvironmentVariable::ResultStorageProxy,
+                    ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
+                )?;
+                service.upload_to_ipfs_with_iexec_proxy(
+                    computed_file,
+                    &storage_proxy,
+                    &storage_token,
+                    file_to_upload_path,
+                )?
+            }
             DROPBOX_RESULT_STORAGE_PROVIDER => {
                 info!("Upload stage mode: DROPBOX_STORAGE");
                 service.upload_to_dropbox(computed_file, &storage_token, file_to_upload_path)?
             }
-            IPFS_RESULT_STORAGE_PROVIDER | _ => {
-                info!("Upload stage mode: IPFS_STORAGE");
+            _ => {
+                info!(
+                    "Unknown storage provider '{storage_provider}', falling back to IPFS [task_id:{}]",
+                    computed_file.task_id.as_ref().unwrap()
+                );
+                let storage_proxy = get_env_var_or_error(
+                    TeeSessionEnvironmentVariable::ResultStorageProxy,
+                    ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
+                )?;
                 service.upload_to_ipfs_with_iexec_proxy(
                     computed_file,
                     &storage_proxy,
@@ -1607,10 +1620,36 @@ mod tests {
     }
 
     #[test]
-    fn upload_result_returns_error_when_storage_provider_missing() {
-        run_upload_result_missing_env(
-            "RESULT_STORAGE_PROVIDER",
-            ReplicateStatusCause::PostComputeFailedUnknownIssue,
+    fn upload_result_defaults_to_ipfs_when_storage_provider_missing() {
+        temp_env::with_vars(
+            vec![
+                ("RESULT_STORAGE_TOKEN", Some("token")),
+                ("RESULT_STORAGE_PROXY", Some("proxy")),
+            ],
+            || {
+                let temp_dir = TempDir::new().unwrap();
+                let file_path = temp_dir.path().join("fileToUpload.zip");
+                File::create(&file_path)
+                    .unwrap()
+                    .write_all(b"test content")
+                    .unwrap();
+                let computed_file = create_test_computed_file("0x0");
+
+                let mut mock_service = MockWeb2ResultInterface::new();
+                mock_service
+                    .expect_upload_to_ipfs_with_iexec_proxy()
+                    .with(
+                        eq(computed_file.clone()),
+                        eq("proxy"),
+                        eq("token"),
+                        function(|path: &str| path.ends_with("fileToUpload.zip")),
+                    )
+                    .times(1)
+                    .returning(|_, _, _, _| Ok("any-result".to_string()));
+
+                let _ =
+                    run_upload_result(&mock_service, &computed_file, file_path.to_str().unwrap());
+            }
         );
     }
     // endregion
