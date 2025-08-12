@@ -102,18 +102,12 @@ impl DropboxUploader for DropboxService {
         // Validate local file exists
         let path = Path::new(local_file_path);
         if !path.exists() {
-            error!(
-                "Local file not found for Dropbox upload [path:{}]",
-                local_file_path
-            );
+            error!("Local file not found for Dropbox upload [path:{local_file_path}]");
             return Err(ReplicateStatusCause::PostComputeResultFileNotFound);
         }
 
         let content = fs::read(path).map_err(|e| {
-            error!(
-                "Failed to read file for Dropbox upload [path:{}, error:{}]",
-                local_file_path, e
-            );
+            error!("Failed to read file for Dropbox upload [path:{local_file_path}, error:{e}]");
             ReplicateStatusCause::PostComputeDropboxUploadFailed
         })?;
 
@@ -129,7 +123,7 @@ impl DropboxUploader for DropboxService {
         let url = format!("{content_base_url}{FILES_UPLOAD_PATH}");
         let response = Client::new()
             .post(url)
-            .header("Authorization", format!("Bearer {}", access_token))
+            .header("Authorization", format!("Bearer {access_token}"))
             .header("Content-Type", "application/octet-stream")
             .header("Dropbox-API-Arg", api_arg_header)
             .body(content)
@@ -144,11 +138,11 @@ impl DropboxUploader for DropboxService {
                             let path = meta
                                 .path_display
                                 .unwrap_or_else(|| dropbox_path.to_string());
-                            info!("Successfully uploaded to Dropbox [path:{}]", path);
+                            info!("Successfully uploaded to Dropbox [path:{path}]");
                             Ok(path)
                         }
                         Err(e) => {
-                            error!("Failed to parse Dropbox response: {}", e);
+                            error!("Failed to parse Dropbox response: {e}");
                             Err(ReplicateStatusCause::PostComputeDropboxUploadFailed)
                         }
                     }
@@ -157,12 +151,12 @@ impl DropboxUploader for DropboxService {
                     Err(ReplicateStatusCause::PostComputeDropboxUploadFailed)
                 } else {
                     let body = resp.text().unwrap_or_default();
-                    error!("Dropbox upload failed [status:{}, body:{}]", status, body);
+                    error!("Dropbox upload failed [status:{status}, body:{body}]");
                     Err(ReplicateStatusCause::PostComputeDropboxUploadFailed)
                 }
             }
             Err(e) => {
-                error!("HTTP error calling Dropbox upload API: {}", e);
+                error!("HTTP error calling Dropbox upload API: {e}");
                 Err(ReplicateStatusCause::PostComputeDropboxUploadFailed)
             }
         }
@@ -246,12 +240,7 @@ mod tests {
             "/results/test.zip",
             DROPBOX_CONTENT_BASE_URL,
         );
-
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            ReplicateStatusCause::PostComputeResultFileNotFound
-        );
+        assert_eq!(result, Err(ReplicateStatusCause::PostComputeResultFileNotFound));
     }
 
     #[tokio::test]

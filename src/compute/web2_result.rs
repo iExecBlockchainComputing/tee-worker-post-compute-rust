@@ -220,20 +220,16 @@ impl Web2ResultService {
             .task_id
             .as_ref()
             .ok_or(ReplicateStatusCause::PostComputeTaskIdMissing)?;
-        let remote_filename = format!("{}.zip", task_id);
-        let dropbox_path = format!("/results/{}", remote_filename);
+        let remote_filename = format!("{task_id}.zip");
+        let dropbox_path = format!("/results/{remote_filename}");
 
         if !Path::new(file_to_upload_path).exists() {
-            error!(
-                "File to upload not found [task_id:{}, path:{}]",
-                task_id, file_to_upload_path
-            );
+            error!("File to upload not found [task_id:{task_id}, path:{file_to_upload_path}]");
             return Err(ReplicateStatusCause::PostComputeResultFileNotFound);
         }
 
         info!(
-            "Uploading to Dropbox [task_id:{}, local:{}, remote:{}]",
-            task_id, file_to_upload_path, dropbox_path
+            "Uploading to Dropbox [task_id:{task_id}, local:{file_to_upload_path}, remote:{dropbox_path}]"
         );
 
         uploader
@@ -244,7 +240,7 @@ impl Web2ResultService {
                 DROPBOX_CONTENT_BASE_URL,
             )
             .map_err(|e| {
-                error!("Dropbox upload failed [task_id:{}, error:{:?}]", task_id, e);
+                error!("Dropbox upload failed [task_id:{task_id}, error:{e:?}]");
                 e
             })
     }
