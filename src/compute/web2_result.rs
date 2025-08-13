@@ -207,7 +207,7 @@ impl Web2ResultService {
             })
     }
 
-    /// Internal implementation of the upload_to_dropbox function for uploadding to Dropbox with dependency injection.
+    /// Internal implementation of the upload_to_dropbox function for uploading to Dropbox with dependency injection.
     /// This allows testing with mocked uploaders.
     fn upload_to_dropbox_with_uploader<T: DropboxUploader>(
         &self,
