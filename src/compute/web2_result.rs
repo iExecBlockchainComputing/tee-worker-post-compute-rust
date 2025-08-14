@@ -1525,12 +1525,12 @@ mod tests {
         run_upload_result_ipfs("unknown-provider");
     }
 
-    fn run_upload_result_dropbox() {
+    #[test]
+    fn upload_result_returns_dropbox_link_when_using_dropbox_provider() {
         temp_env::with_vars(
             vec![
                 ("RESULT_STORAGE_PROVIDER", Some("dropbox")),
                 ("RESULT_STORAGE_TOKEN", Some("dropboxToken")),
-                // Although not used by Dropbox branch, proxy is read unconditionally
                 ("RESULT_STORAGE_PROXY", Some("https://proxy.example.com")),
             ],
             || {
@@ -1561,11 +1561,6 @@ mod tests {
                 assert_eq!(result.unwrap(), expected_link);
             },
         );
-    }
-
-    #[test]
-    fn upload_result_returns_dropbox_link_when_using_dropbox_provider() {
-        run_upload_result_dropbox();
     }
 
     fn run_upload_result_missing_env(missing_var: &str, expected_error: ReplicateStatusCause) {
