@@ -207,7 +207,7 @@ mod tests {
             DropboxService.upload_file("valid-token", &file_path, "/results/uploaded.zip", &base)
         })
         .await
-        .expect("Task panicked");
+        .expect("The upload_file task panicked. Expected the DropboxService to successfully upload the file and return the Dropbox path, but the task did not complete as expected.");
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "/results/uploaded.zip");
@@ -273,7 +273,7 @@ mod tests {
             DropboxService.upload_file("invalid-token", &file_path, "/results/uploaded.zip", &base)
         })
         .await
-        .expect("Task panicked");
+        .expect("Task panicked: expected DropboxService.upload_file to return an error indicating unauthorized access (PostComputeDropboxUploadFailed), but the task did not complete successfully");
 
         assert_eq!(
             result,
@@ -303,7 +303,7 @@ mod tests {
             DropboxService.upload_file("token", &file_path, "/results/uploaded.zip", &base)
         })
         .await
-        .expect("Task panicked");
+        .expect("Task panicked: expected DropboxService.upload_file to return an error indicating a server error (PostComputeDropboxUploadFailed), but the task did not complete successfully");
 
         assert_eq!(
             result,
@@ -333,7 +333,7 @@ mod tests {
             DropboxService.upload_file("token", &file_path, "/results/bad.json", &base)
         })
         .await
-        .expect("Task panicked");
+        .expect("Task panicked: expected upload_file to return an error due to invalid JSON response, but the task did not complete successfully");
 
         assert_eq!(
             result,
