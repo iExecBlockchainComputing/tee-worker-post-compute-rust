@@ -39,8 +39,15 @@ pub fn get_env_var_or_error(
     env_var: TeeSessionEnvironmentVariable,
     status_cause_if_missing: ReplicateStatusCause,
 ) -> Result<String, ReplicateStatusCause> {
+    match get_env_var(env_var) {
+        val if val.is_empty() => Err(status_cause_if_missing),
+        val => Ok(val),
+    }
+}
+
+pub fn get_env_var(env_var: TeeSessionEnvironmentVariable) -> String {
     match env::var(env_var.name()) {
-        Ok(value) if !value.is_empty() => Ok(value),
-        _ => Err(status_cause_if_missing),
+        Ok(value) => value,
+        _ => "".to_string(),
     }
 }

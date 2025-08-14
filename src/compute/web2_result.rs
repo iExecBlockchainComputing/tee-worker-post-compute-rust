@@ -1,9 +1,10 @@
 use crate::api::result_proxy_api_client::{ResultModel, ResultProxyApiClient};
 use crate::compute::{
     computed_file::ComputedFile,
+    dropbox::{DROPBOX_CONTENT_BASE_URL, DropboxService, DropboxUploader},
     encryption::encrypt_data,
     errors::ReplicateStatusCause,
-    utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
+    utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var, get_env_var_or_error},
 };
 use base64::{Engine as _, engine::general_purpose};
 use log::{debug, error, info};
@@ -80,6 +81,12 @@ pub trait Web2ResultInterface {
         &self,
         computed_file: &ComputedFile,
         base_url: &str,
+        token: &str,
+        file_to_upload_path: &str,
+    ) -> Result<String, ReplicateStatusCause>;
+    fn upload_to_dropbox(
+        &self,
+        computed_file: &ComputedFile,
         token: &str,
         file_to_upload_path: &str,
     ) -> Result<String, ReplicateStatusCause>;
@@ -197,6 +204,44 @@ impl Web2ResultService {
                 })?;
 
                 Ok(())
+            })
+    }
+
+    /// Internal implementation of the upload_to_dropbox function for uploading to Dropbox with dependency injection.
+    /// This allows testing with mocked uploaders.
+    fn upload_to_dropbox_with_uploader<T: DropboxUploader>(
+        &self,
+        computed_file: &ComputedFile,
+        token: &str,
+        file_to_upload_path: &str,
+        uploader: &T,
+    ) -> Result<String, ReplicateStatusCause> {
+        let task_id = computed_file
+            .task_id
+            .as_ref()
+            .ok_or(ReplicateStatusCause::PostComputeTaskIdMissing)?;
+        let remote_filename = format!("{task_id}.zip");
+        let dropbox_path = format!("/results/{remote_filename}");
+
+        if !Path::new(file_to_upload_path).exists() {
+            error!("File to upload not found [task_id:{task_id}, path:{file_to_upload_path}]");
+            return Err(ReplicateStatusCause::PostComputeResultFileNotFound);
+        }
+
+        info!(
+            "Uploading to Dropbox [task_id:{task_id}, local:{file_to_upload_path}, remote:{dropbox_path}]"
+        );
+
+        uploader
+            .upload_file(
+                token,
+                file_to_upload_path,
+                &dropbox_path,
+                DROPBOX_CONTENT_BASE_URL,
+            )
+            .map_err(|e| {
+                error!("Dropbox upload failed [task_id:{task_id}, error:{e:?}]");
+                e
             })
     }
 }
@@ -464,47 +509,36 @@ impl Web2ResultInterface for Web2ResultService {
     ///
     /// * `Ok(String)` - The storage link where the result was uploaded
     /// * `Err(ReplicateStatusCause)` - Upload failed
+    #[allow(clippy::wildcard_in_or_patterns)]
     fn upload_result(
         &self,
         computed_file: &ComputedFile,
         file_to_upload_path: &str,
     ) -> Result<String, ReplicateStatusCause> {
         info!("Upload stage started");
-        let storage_provider = get_env_var_or_error(
-            TeeSessionEnvironmentVariable::ResultStorageProvider,
-            ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
-        )?;
-        let storage_proxy = get_env_var_or_error(
-            TeeSessionEnvironmentVariable::ResultStorageProxy,
-            ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
-        )?;
+        let storage_provider = get_env_var(TeeSessionEnvironmentVariable::ResultStorageProvider);
         let storage_token = get_env_var_or_error(
             TeeSessionEnvironmentVariable::ResultStorageToken,
             ReplicateStatusCause::PostComputeStorageTokenMissing,
         )?;
+
         let result_link = match storage_provider.as_str() {
-            IPFS_RESULT_STORAGE_PROVIDER => {
-                info!("Upload stage mode: IPFS_STORAGE");
-                self.upload_to_ipfs_with_iexec_proxy(
-                    computed_file,
-                    &storage_proxy,
-                    &storage_token,
-                    file_to_upload_path,
-                )?
-            }
             DROPBOX_RESULT_STORAGE_PROVIDER => {
-                error!(
-                    "Dropbox storage provider is not supported [task_id:{}]",
-                    computed_file.task_id.as_ref().unwrap()
-                );
-                return Err(ReplicateStatusCause::PostComputeDropboxUploadFailed);
+                info!("Upload stage mode: DROPBOX_STORAGE");
+                self.upload_to_dropbox(computed_file, &storage_token, file_to_upload_path)?
             }
-            _ => {
-                info!(
-                    "Unknown storage provider '{}', falling back to IPFS [task_id:{}]",
-                    storage_provider,
-                    computed_file.task_id.as_ref().unwrap()
-                );
+            IPFS_RESULT_STORAGE_PROVIDER | _ => {
+                if storage_provider.is_empty() {
+                    info!(
+                        "Unknown storage provider '{storage_provider}', falling back to IPFS [task_id:{}]",
+                        computed_file.task_id.as_ref().unwrap()
+                    );
+                }
+                info!("Upload stage mode: IPFS_STORAGE");
+                let storage_proxy = get_env_var_or_error(
+                    TeeSessionEnvironmentVariable::ResultStorageProxy,
+                    ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
+                )?;
                 self.upload_to_ipfs_with_iexec_proxy(
                     computed_file,
                     &storage_proxy,
@@ -570,11 +604,38 @@ impl Web2ResultInterface for Web2ResultService {
             }
         }
     }
+
+    /// Uploads a file to Dropbox storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `computed_file` - The computed file metadata
+    /// * `token` - The Dropbox access token
+    /// * `file_to_upload_path` - Path to the local file to upload
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(String)` - The Dropbox path where the file was uploaded
+    /// * `Err(ReplicateStatusCause)` - Upload error
+    fn upload_to_dropbox(
+        &self,
+        computed_file: &ComputedFile,
+        token: &str,
+        file_to_upload_path: &str,
+    ) -> Result<String, ReplicateStatusCause> {
+        self.upload_to_dropbox_with_uploader(
+            computed_file,
+            token,
+            file_to_upload_path,
+            &DropboxService,
+        )
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::compute::dropbox::MockDropboxUploader;
     use mockall::predicate::{eq, function};
     use std::os::unix::fs::symlink;
     use temp_env::{self, with_vars};
@@ -1382,21 +1443,28 @@ mod tests {
         file_to_upload_path: &str,
     ) -> Result<String, ReplicateStatusCause> {
         info!("Upload stage started");
-        let storage_provider = get_env_var_or_error(
-            TeeSessionEnvironmentVariable::ResultStorageProvider,
-            ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
-        )?;
-        let storage_proxy = get_env_var_or_error(
-            TeeSessionEnvironmentVariable::ResultStorageProxy,
-            ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
-        )?;
+        let storage_provider = get_env_var(TeeSessionEnvironmentVariable::ResultStorageProvider);
         let storage_token = get_env_var_or_error(
             TeeSessionEnvironmentVariable::ResultStorageToken,
             ReplicateStatusCause::PostComputeStorageTokenMissing,
         )?;
         let result_link = match storage_provider.as_str() {
+            DROPBOX_RESULT_STORAGE_PROVIDER => {
+                info!("Upload stage mode: DROPBOX_STORAGE");
+                service.upload_to_dropbox(computed_file, &storage_token, file_to_upload_path)?
+            }
             IPFS_RESULT_STORAGE_PROVIDER | _ => {
+                if storage_provider.is_empty() {
+                    info!(
+                        "Unknown storage provider '{storage_provider}', falling back to IPFS [task_id:{}]",
+                        computed_file.task_id.as_ref().unwrap()
+                    );
+                }
                 info!("Upload stage mode: IPFS_STORAGE");
+                let storage_proxy = get_env_var_or_error(
+                    TeeSessionEnvironmentVariable::ResultStorageProxy,
+                    ReplicateStatusCause::PostComputeFailedUnknownIssue, //TODO Define better error
+                )?;
                 service.upload_to_ipfs_with_iexec_proxy(
                     computed_file,
                     &storage_proxy,
@@ -1457,6 +1525,44 @@ mod tests {
         run_upload_result_ipfs("unknown-provider");
     }
 
+    #[test]
+    fn upload_result_returns_dropbox_link_when_using_dropbox_provider() {
+        temp_env::with_vars(
+            vec![
+                ("RESULT_STORAGE_PROVIDER", Some("dropbox")),
+                ("RESULT_STORAGE_TOKEN", Some("dropboxToken")),
+                ("RESULT_STORAGE_PROXY", Some("https://proxy.example.com")),
+            ],
+            || {
+                let temp_dir = TempDir::new().unwrap();
+                let file_path = temp_dir.path().join("test.zip");
+                File::create(&file_path)
+                    .unwrap()
+                    .write_all(b"test content")
+                    .unwrap();
+
+                let mut mock_service = MockWeb2ResultInterface::new();
+                let computed_file = create_test_computed_file("0x0");
+                let expected_link = "/results/0x0.zip";
+
+                mock_service
+                    .expect_upload_to_dropbox()
+                    .with(
+                        eq(computed_file.clone()),
+                        eq("dropboxToken"),
+                        function(|path: &str| path.ends_with("test.zip")),
+                    )
+                    .times(1)
+                    .returning(move |_, _, _| Ok(String::from(expected_link)));
+
+                let result =
+                    run_upload_result(&mock_service, &computed_file, file_path.to_str().unwrap());
+                assert!(result.is_ok());
+                assert_eq!(result.unwrap(), expected_link);
+            },
+        );
+    }
+
     fn run_upload_result_missing_env(missing_var: &str, expected_error: ReplicateStatusCause) {
         let mut envs = vec![
             ("RESULT_STORAGE_PROVIDER", Some("ipfs")),
@@ -1490,10 +1596,36 @@ mod tests {
     }
 
     #[test]
-    fn upload_result_returns_error_when_storage_provider_missing() {
-        run_upload_result_missing_env(
-            "RESULT_STORAGE_PROVIDER",
-            ReplicateStatusCause::PostComputeFailedUnknownIssue,
+    fn upload_result_defaults_to_ipfs_when_storage_provider_missing() {
+        temp_env::with_vars(
+            vec![
+                ("RESULT_STORAGE_TOKEN", Some("token")),
+                ("RESULT_STORAGE_PROXY", Some("proxy")),
+            ],
+            || {
+                let temp_dir = TempDir::new().unwrap();
+                let file_path = temp_dir.path().join("fileToUpload.zip");
+                File::create(&file_path)
+                    .unwrap()
+                    .write_all(b"test content")
+                    .unwrap();
+                let computed_file = create_test_computed_file("0x0");
+
+                let mut mock_service = MockWeb2ResultInterface::new();
+                mock_service
+                    .expect_upload_to_ipfs_with_iexec_proxy()
+                    .with(
+                        eq(computed_file.clone()),
+                        eq("proxy"),
+                        eq("token"),
+                        function(|path: &str| path.ends_with("fileToUpload.zip")),
+                    )
+                    .times(1)
+                    .returning(|_, _, _, _| Ok("any-result".to_string()));
+
+                let _ =
+                    run_upload_result(&mock_service, &computed_file, file_path.to_str().unwrap());
+            },
         );
     }
     // endregion
@@ -1584,6 +1716,108 @@ mod tests {
         assert_eq!(
             result,
             Err(ReplicateStatusCause::PostComputeIpfsUploadFailed)
+        );
+    }
+    // endregion
+
+    // region upload_to_dropbox
+    #[test]
+    fn upload_to_dropbox_returns_error_when_task_id_missing() {
+        let computed_file = ComputedFile {
+            task_id: None,
+            ..Default::default()
+        };
+
+        let result = Web2ResultService.upload_to_dropbox(&computed_file, "token", "/no/file");
+        assert_eq!(result, Err(ReplicateStatusCause::PostComputeTaskIdMissing));
+    }
+
+    #[test]
+    fn upload_to_dropbox_returns_error_when_file_not_found() {
+        let computed_file = create_test_computed_file("0xdeadbeef");
+
+        let result =
+            Web2ResultService.upload_to_dropbox(&computed_file, "token", "/path/does/not/exist");
+        assert_eq!(
+            result,
+            Err(ReplicateStatusCause::PostComputeResultFileNotFound)
+        );
+    }
+
+    #[test]
+    fn upload_to_dropbox_returns_error_when_local_path_is_directory() {
+        let computed_file = create_test_computed_file("0xdir");
+        let temp_dir = TempDir::new().unwrap();
+
+        let result = Web2ResultService.upload_to_dropbox(
+            &computed_file,
+            "token",
+            temp_dir.path().to_str().unwrap(),
+        );
+        assert_eq!(
+            result,
+            Err(ReplicateStatusCause::PostComputeDropboxUploadFailed)
+        );
+    }
+
+    #[test]
+    fn upload_to_dropbox_returns_ok_when_upload_succeeds() {
+        let temp_file = NamedTempFile::new().unwrap();
+        fs::write(temp_file.path(), b"content").unwrap();
+        let computed_file = create_test_computed_file("0xsucc");
+        let file_path = temp_file.path().to_str().unwrap().to_string();
+
+        let mut mock_uploader = MockDropboxUploader::new();
+        mock_uploader
+            .expect_upload_file()
+            .with(
+                eq("test-token"),
+                eq(file_path.clone()),
+                eq("/results/0xsucc.zip"),
+                eq(DROPBOX_CONTENT_BASE_URL),
+            )
+            .times(1)
+            .returning(|_, _, _, _| Ok("/results/0xsucc.zip".to_string()));
+
+        let result = Web2ResultService.upload_to_dropbox_with_uploader(
+            &computed_file,
+            "test-token",
+            &file_path,
+            &mock_uploader,
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "/results/0xsucc.zip");
+    }
+
+    #[test]
+    fn upload_to_dropbox_propagates_error_when_upload_fails() {
+        let temp_file = NamedTempFile::new().unwrap();
+        fs::write(temp_file.path(), b"content").unwrap();
+        let computed_file = create_test_computed_file("0xerr");
+        let file_path = temp_file.path().to_str().unwrap().to_string();
+
+        let mut mock_uploader = MockDropboxUploader::new();
+        mock_uploader
+            .expect_upload_file()
+            .with(
+                eq("test-token"),
+                eq(file_path.clone()),
+                eq("/results/0xerr.zip"),
+                eq(DROPBOX_CONTENT_BASE_URL),
+            )
+            .times(1)
+            .returning(|_, _, _, _| Err(ReplicateStatusCause::PostComputeDropboxUploadFailed));
+
+        let result = Web2ResultService.upload_to_dropbox_with_uploader(
+            &computed_file,
+            "test-token",
+            &file_path,
+            &mock_uploader,
+        );
+        assert_eq!(
+            result,
+            Err(ReplicateStatusCause::PostComputeDropboxUploadFailed)
         );
     }
     // endregion
