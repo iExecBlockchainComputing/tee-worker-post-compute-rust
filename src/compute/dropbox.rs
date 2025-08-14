@@ -216,7 +216,7 @@ mod tests {
         assert!(!requests.is_empty());
 
         let expected_args = serde_json::json!({
-        "mode": "add",
+            "mode": "add",
             "autorename": false,
             "mute": false,
             "path": "/results/uploaded.zip",
