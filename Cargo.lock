@@ -3000,37 +3000,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "post-compute"
-version = "0.1.0"
-dependencies = [
- "aes",
- "alloy-signer",
- "alloy-signer-local",
- "base64 0.22.1",
- "cbc",
- "env_logger",
- "log",
- "logtest",
- "mockall",
- "once_cell",
- "rand 0.8.5",
- "reqwest",
- "rsa",
- "serde",
- "serde_json",
- "serial_test",
- "sha256",
- "sha3",
- "temp-env",
- "tempfile",
- "thiserror",
- "tokio",
- "walkdir",
- "wiremock",
- "zip",
-]
-
-[[package]]
 name = "potential_utf"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3058,33 +3027,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
  "zerocopy",
-]
-
-[[package]]
-name = "pre-compute"
-version = "0.1.0"
-dependencies = [
- "aes",
- "alloy-signer",
- "alloy-signer-local",
- "base64 0.22.1",
- "cbc",
- "env_logger",
- "log",
- "mockall",
- "multiaddr",
- "reqwest",
- "serde",
- "serde_json",
- "sha256",
- "sha3",
- "temp-env",
- "tempfile",
- "testcontainers",
- "testing_logger",
- "thiserror",
- "tokio",
- "wiremock",
 ]
 
 [[package]]
@@ -4184,6 +4126,64 @@ name = "tap"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
+
+[[package]]
+name = "tee-worker-post-compute"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "alloy-signer",
+ "alloy-signer-local",
+ "base64 0.22.1",
+ "cbc",
+ "env_logger",
+ "log",
+ "logtest",
+ "mockall",
+ "once_cell",
+ "rand 0.8.5",
+ "reqwest",
+ "rsa",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "sha256",
+ "sha3",
+ "temp-env",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "walkdir",
+ "wiremock",
+ "zip",
+]
+
+[[package]]
+name = "tee-worker-pre-compute"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "alloy-signer",
+ "alloy-signer-local",
+ "base64 0.22.1",
+ "cbc",
+ "env_logger",
+ "log",
+ "mockall",
+ "multiaddr",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha256",
+ "sha3",
+ "temp-env",
+ "tempfile",
+ "testcontainers",
+ "testing_logger",
+ "thiserror",
+ "tokio",
+ "wiremock",
+]
 
 [[package]]
 name = "temp-env"
