@@ -42,13 +42,10 @@ impl PreComputeArgs {
     /// - Missing dataset parameters when required
     /// - Missing input file URLs
     ///
-    /// # Example
-    /// ```
-    /// use crate::compute::pre_compute_args::PreComputeArgs;
+    /// # Note
     ///
-    /// // Typically called with task ID from execution context
-    /// let args = PreComputeArgs::read_args("task-1234".to_string())?;
-    /// ```
+    /// This method is called internally during application initialization to parse
+    /// all pre-compute configuration from environment variables.
     pub fn read_args() -> Result<Self, ReplicateStatusCause> {
         let output_dir = get_env_var_or_error(
             TeeSessionEnvironmentVariable::IexecPreComputeOut,
@@ -120,8 +117,8 @@ impl PreComputeArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compute::errors::ReplicateStatusCause;
-    use crate::compute::utils::env_utils::TeeSessionEnvironmentVariable::*;
+    use tee_worker_pre_compute::compute::errors::ReplicateStatusCause;
+    use tee_worker_pre_compute::compute::utils::env_utils::TeeSessionEnvironmentVariable::*;
     use std::collections::HashMap;
 
     const OUTPUT_DIR: &str = "/iexec_out";

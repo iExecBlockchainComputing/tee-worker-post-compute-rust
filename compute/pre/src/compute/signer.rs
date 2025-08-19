@@ -28,7 +28,9 @@ use alloy_signer_local::PrivateKeySigner;
 ///
 /// # Example
 ///
-/// ```
+/// ```rust
+/// use tee_worker_pre_compute::compute::signer::sign_enclave_challenge;
+///
 /// let message_hash = "0x5cd0e9c5180dd35e2b8285d0db4ded193a9b4be6fbfab90cbadccecab130acad";
 /// let private_key = "0xdd3b993ec21c71c1f6d63a5240850e0d4d8dd83ff70d29e49247958548c1d479";
 ///
@@ -81,14 +83,16 @@ pub fn sign_enclave_challenge(
 ///
 /// # Example
 ///
-/// ```
+/// ```rust
+/// use tee_worker_pre_compute::compute::signer::get_challenge;
+///
 /// // Assuming the necessary environment variables are set:
 /// // SIGN_WORKER_ADDRESS=0xabcdef123456789
 /// // SIGN_TEE_CHALLENGE_PRIVATE_KEY=0xdd3b993ec21c71c1f6d63a5240850e0d4d8dd83ff70d29e49247958548c1d479
 ///
 /// let chain_task_id = "0x123456789abcdef";
 ///
-/// match challenge(chain_task_id) {
+/// match get_challenge(chain_task_id) {
 ///     Ok(signature) => println!("Challenge signature: {signature}"),
 ///     Err(e) => eprintln!("Error generating challenge: {e:?}"),
 /// }

@@ -14,7 +14,7 @@ use log::{error, info};
 ///
 /// Each variant is explicitly assigned an `i32` value, and the enum
 /// uses `#[repr(i32)]` to ensure its memory representation matches C-style enums.
-#[cfg_attr(test, derive(Debug, PartialEq))]
+#[derive(Debug, PartialEq)]
 #[repr(i32)]
 pub enum ExitMode {
     Success = 0,
@@ -145,14 +145,32 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
 ///
 /// # Example
 ///
-/// ```
-/// use crate::app_runner::{start_with_runner, DefaultPostComputeRunner};
+/// ```rust
+/// use tee_worker_post_compute::compute::app_runner::{start_with_runner, DefaultPostComputeRunner, PostComputeRunnerInterface};
+/// use tee_worker_post_compute::compute::{computed_file::ComputedFile, errors::ReplicateStatusCause};
+/// use tee_worker_post_compute::api::worker_api::ExitMessage;
 ///
 /// // Using the default runner
-/// let exit_code = start_with_runner(&DefaultPostComputeRunner);
+/// let runner = DefaultPostComputeRunner::new();
+/// let exit_code = start_with_runner(&runner);
 ///
 /// // Using a custom runner
-/// let custom_runner = MyCustomRunner::new();
+/// struct MyCustomRunner;
+/// impl PostComputeRunnerInterface for MyCustomRunner {
+///     fn run_post_compute(&self, _: &str) -> Result<(), ReplicateStatusCause> {
+///         Ok(())
+///     }
+///     fn get_challenge(&self, _: &str) -> Result<String, ReplicateStatusCause> {
+///         Ok("challenge".to_string())
+///     }
+///     fn send_exit_cause(&self, _: &str, _: &str, _: &ExitMessage<'_>) -> Result<(), ReplicateStatusCause> {
+///         Ok(())
+///     }
+///     fn send_computed_file(&self, _: &ComputedFile) -> Result<(), ReplicateStatusCause> {
+///         Ok(())
+///     }
+/// }
+/// let custom_runner = MyCustomRunner;
 /// let exit_code = start_with_runner(&custom_runner);
 /// ```
 pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> ExitMode {
@@ -210,11 +228,16 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> ExitMode 
 ///
 /// # Example
 ///
-/// ```
-/// use crate::app_runner::start;
+/// ```rust
+/// use tee_worker_post_compute::compute::app_runner::{start, ExitMode};
 ///
-/// let exit_code = start();
-/// std::process::exit(exit_code);
+/// let exit_mode = start();
+/// match exit_mode {
+///     ExitMode::Success => println!("Post-compute completed successfully"),
+///     ExitMode::ReportedFailure => println!("Post-compute failed (reported)"),
+///     ExitMode::UnreportedFailure => println!("Post-compute failed (unreported)"),
+///     ExitMode::InitializationFailure => println!("Post-compute initialization failed"),
+/// }
 /// ```
 pub fn start() -> ExitMode {
     let runner = DefaultPostComputeRunner::new();
@@ -224,7 +247,7 @@ pub fn start() -> ExitMode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compute::{
+    use tee_worker_post_compute::compute::{
         computed_file::ComputedFile, errors::ReplicateStatusCause,
         utils::env_utils::TeeSessionEnvironmentVariable,
     };

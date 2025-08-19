@@ -22,9 +22,9 @@ use serde::Serialize;
 ///
 /// # Example
 ///
-/// ```
-/// use crate::compute::worker_api::ExitMessage;
-/// use crate::compute::errors::ReplicateStatusCause;
+/// ```rust
+/// use tee_worker_pre_compute::api::worker_api::ExitMessage;
+/// use tee_worker_pre_compute::compute::errors::ReplicateStatusCause;
 ///
 /// let exit_message = ExitMessage::from(&ReplicateStatusCause::PreComputeInvalidTeeSignature);
 /// ```
@@ -46,8 +46,8 @@ impl<'a> From<&'a ReplicateStatusCause> for ExitMessage<'a> {
 ///
 /// # Example
 ///
-/// ```
-/// use crate::compute::worker_api::WorkerApiClient;
+/// ```rust
+/// use tee_worker_pre_compute::api::worker_api::WorkerApiClient;
 ///
 /// let client = WorkerApiClient::new("http://worker:13100");
 /// ```
@@ -59,7 +59,7 @@ pub struct WorkerApiClient {
 const DEFAULT_WORKER_HOST: &str = "worker:13100";
 
 impl WorkerApiClient {
-    fn new(base_url: &str) -> Self {
+    pub fn new(base_url: &str) -> Self {
         WorkerApiClient {
             base_url: base_url.to_string(),
             client: Client::new(),
@@ -78,7 +78,7 @@ impl WorkerApiClient {
     /// # Example
     ///
     /// ```
-    /// use crate::api::worker_api::WorkerApiClient;
+    /// use tee_worker_pre_compute::api::worker_api::WorkerApiClient;
     ///
     /// let client = WorkerApiClient::from_env();
     /// ```
@@ -116,9 +116,9 @@ impl WorkerApiClient {
     ///
     /// # Example
     ///
-    /// ```
-    /// use crate::compute::worker_api::{ExitMessage, WorkerApiClient};
-    /// use crate::compute::errors::ReplicateStatusCause;
+    /// ```rust
+    /// use tee_worker_pre_compute::api::worker_api::{ExitMessage, WorkerApiClient};
+    /// use tee_worker_pre_compute::compute::errors::ReplicateStatusCause;
     ///
     /// let client = WorkerApiClient::new("http://worker:13100");
     /// let exit_message = ExitMessage::from(&ReplicateStatusCause::PreComputeInvalidTeeSignature);
@@ -167,7 +167,7 @@ impl WorkerApiClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compute::utils::env_utils::TeeSessionEnvironmentVariable::WorkerHostEnvVar;
+    use tee_worker_pre_compute::compute::utils::env_utils::TeeSessionEnvironmentVariable::WorkerHostEnvVar;
     use serde_json::{json, to_string};
     use temp_env::with_vars;
     use wiremock::{

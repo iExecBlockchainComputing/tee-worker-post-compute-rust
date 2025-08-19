@@ -12,9 +12,10 @@ use sha3::{Digest, Sha3_256};
 use std::{fs, path::Path};
 
 /// 256-bit key (32 bytes)
-const AES_KEY_LENGTH: usize = 32;
+pub const AES_KEY_LENGTH: usize = 32;
 /// 128-bit IV (16 bytes) same as the AES block size
-const AES_IV_LENGTH: usize = 16;
+pub const AES_IV_LENGTH: usize = 16;
+
 
 /// Encrypts a data file using hybrid encryption (AES-256-CBC + RSA-2048).
 ///
@@ -77,14 +78,23 @@ const AES_IV_LENGTH: usize = 16;
 /// # Example
 ///
 /// ```rust
-/// // Encrypt a file and create a ZIP archive
-/// let rsa_key = "-----BEGIN PUBLIC KEY-----\nMIIB...AQAB\n-----END PUBLIC KEY-----";
-/// let result = encrypt_data("./secret.txt", rsa_key, true)?;
-/// println!("Encrypted ZIP created: {}", result);
+/// use tee_worker_post_compute::compute::encryption::encrypt_data;
+/// use tee_worker_post_compute::compute::errors::ReplicateStatusCause;
 ///
-/// // Encrypt a file and get directory path
-/// let result = encrypt_data("./secret.txt", rsa_key, false)?;
-/// println!("Encrypted files in: {}", result);
+/// fn main() -> Result<(), ReplicateStatusCause> {
+///     let temp_file = tempfile::NamedTempFile::new().expect("Failed to create temp file");
+///     std::fs::write(temp_file.path(), b"Super secret data").expect("Failed to write to temp file");
+///     let file = temp_file.path().to_str().unwrap();
+///     // Encrypt a file and create a ZIP archive
+///     let rsa_key = "-----BEGIN PUBLIC KEY-----\nMIIB...AQAB\n-----END PUBLIC KEY-----";
+///     let result = encrypt_data(file, rsa_key, true)?;
+///     println!("Encrypted ZIP created: {}", result);
+///
+///     // Encrypt a file and get directory path
+///     let result = encrypt_data(file, rsa_key, false)?;
+///     println!("Encrypted files in: {}", result);
+///     Ok(())
+/// }
 /// ```
 pub fn encrypt_data(
     in_data_file_path: &str,
@@ -227,7 +237,9 @@ pub fn encrypt_data(
 /// # Example
 ///
 /// ```rust
-/// let aes_key = generate_aes_key()?;
+/// use tee_worker_post_compute::compute::encryption::{generate_aes_key, AES_KEY_LENGTH};
+///
+/// let aes_key = generate_aes_key().unwrap();
 /// assert_eq!(aes_key.len(), AES_KEY_LENGTH);
 /// ```
 pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
@@ -291,9 +303,11 @@ pub fn generate_aes_key() -> Result<Vec<u8>, ReplicateStatusCause> {
 /// # Example
 ///
 /// ```rust
+/// use tee_worker_post_compute::compute::encryption::{aes_encrypt, generate_aes_key, AES_IV_LENGTH};
+///
 /// let data = b"Secret message to encrypt";
-/// let key = generate_aes_key()?;
-/// let encrypted = aes_encrypt(data, &key)?;
+/// let key = generate_aes_key().unwrap();
+/// let encrypted = aes_encrypt(data, &key).unwrap();
 ///
 /// // Output format: [`AES_IV_LENGTH` bytes IV][encrypted data with PKCS7 padding]
 /// let AES_BLOCK_SIZE = 16;
@@ -367,8 +381,16 @@ pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCa
 /// # Example
 ///
 /// ```rust
-/// let encrypted_data = aes_encrypt(plaintext, &key)?;
-/// write_file("./output/data.aes".to_string(), &encrypted_data)?;
+/// use tee_worker_post_compute::compute::encryption::{aes_encrypt, generate_aes_key, write_file};
+/// use tee_worker_post_compute::compute::errors::ReplicateStatusCause;
+///
+/// fn main() -> Result<(), ReplicateStatusCause> {
+///     let plaintext: &[u8] = b"example data to encrypt";
+///     let key = generate_aes_key()?;
+///     let encrypted_data = aes_encrypt(&plaintext, &key)?;
+///     write_file("./output/data.aes".to_string(), &encrypted_data)?;
+///     Ok(())
+/// }
 /// ```
 pub fn write_file(file_path: String, data: &[u8]) -> Result<(), ReplicateStatusCause> {
     if let Err(e) = fs::write(&file_path, data) {

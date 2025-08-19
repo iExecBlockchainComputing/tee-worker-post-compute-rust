@@ -14,7 +14,7 @@ use serde::Deserialize;
 use std::{fs, path::Path};
 
 /// Default Dropbox Content API base URL used for uploads.
-pub(crate) const DROPBOX_CONTENT_BASE_URL: &str = "https://content.dropboxapi.com";
+pub const DROPBOX_CONTENT_BASE_URL: &str = "https://content.dropboxapi.com";
 
 /// REST path for the Dropbox "files/upload" endpoint.
 const FILES_UPLOAD_PATH: &str = "/2/files/upload";
@@ -27,7 +27,7 @@ const FILES_UPLOAD_PATH: &str = "/2/files/upload";
 /// # Example
 ///
 /// ```rust
-/// use crate::compute::dropbox::{DropboxService, DROPBOX_CONTENT_BASE_URL};
+/// use tee_worker_post_compute::compute::dropbox::{DropboxUploader, DropboxService, DROPBOX_CONTENT_BASE_URL};
 ///
 /// let service = DropboxService;
 /// let result = service.upload_file(
@@ -81,7 +81,7 @@ impl DropboxUploader for DropboxService {
     /// # Example
     ///
     /// ```rust
-    /// use crate::compute::dropbox::{DropboxService, DROPBOX_CONTENT_BASE_URL};
+    /// use tee_worker_post_compute::compute::dropbox::{DropboxUploader, DropboxService, DROPBOX_CONTENT_BASE_URL};
     ///
     /// let service = DropboxService;
     /// let result = service.upload_file(

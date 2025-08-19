@@ -70,17 +70,10 @@ impl PreComputeAppTrait for PreComputeApp {
     /// - `Err(ReplicateStatusCause::PreComputeOutputFolderNotFound)` if the directory does not exist,
     ///   or if `pre_compute_args` is missing.
     ///
-    /// # Example
+    /// # Note
     ///
-    /// ```
-    /// use crate::pre_compute_app::PreComputeApp;
-    ///
-    /// let pre_compute_app = PreComputeApp::new();
-    /// pre_compute_app.chain_task_id = Some("0x123456789abcdef");
-    /// pre_compute_app.pre_compute_args = Some(PreComputeArgs::read_args()?);
-    ///
-    /// pre_compute_app.check_output_folder()?;
-    /// ```
+    /// This method is called internally during the pre-compute workflow to validate
+    /// that the specified output directory exists before proceeding with file operations.
     fn check_output_folder(&self) -> Result<(), ReplicateStatusCause> {
         let output_dir = self
             .pre_compute_args
@@ -118,17 +111,10 @@ impl PreComputeAppTrait for PreComputeApp {
     /// - `pre_compute_args` is `None`.
     /// - `chain_task_id` is `None`.
     ///
-    /// # Example
+    /// # Note
     ///
-    /// ```
-    /// use crate::pre_compute_app::PreComputeApp;
-    ///
-    /// let pre_compute_app = PreComputeApp::new();
-    /// pre_compute_app.chain_task_id = Some("0x123456789abcdef");
-    /// pre_compute_app.pre_compute_args = Some(PreComputeArgs::read_args()?);
-    ///
-    /// pre_compute_app.download_input_files()?;
-    /// ```
+    /// This method is called internally during the pre-compute workflow to fetch
+    /// all required input files before processing begins.
     fn download_input_files(&self) -> Result<(), ReplicateStatusCause> {
         let args = self.pre_compute_args.as_ref().unwrap();
         let chain_task_id = self.chain_task_id.as_ref().unwrap();
@@ -152,15 +138,10 @@ impl PreComputeAppTrait for PreComputeApp {
     /// * `Err(ReplicateStatusCause::PreComputeDatasetDownloadFailed)` if the download fails or inputs are missing.
     /// * `Err(ReplicateStatusCause::PreComputeInvalidDatasetChecksum)` if checksum validation fails.
     ///
-    /// # Example
+    /// # Note
     ///
-    /// ```
-    /// let app = PreComputeApp::new();
-    /// pre_compute_app.chain_task_id = Some("0x123456789abcdef");
-    /// pre_compute_app.pre_compute_args = Some(PreComputeArgs::read_args()?);
-    ///
-    /// app.download_encrypted_dataset()?;
-    /// ```
+    /// This method is called internally during the pre-compute workflow when
+    /// an encrypted dataset needs to be fetched from IPFS or HTTP endpoints.
     fn download_encrypted_dataset(&self) -> Result<Vec<u8>, ReplicateStatusCause> {
         let args = self.pre_compute_args.as_ref().unwrap();
         let chain_task_id = self.chain_task_id.as_ref().unwrap();
@@ -220,16 +201,10 @@ impl PreComputeAppTrait for PreComputeApp {
     /// * `Ok(Vec<u8>)` containing the plaintext dataset if decryption succeeds.
     /// * `Err(ReplicateStatusCause::PreComputeDatasetDecryptionFailed)` if the key is missing, decoding fails, or decryption fails.
     ///
-    /// # Example
+    /// # Note
     ///
-    /// ```
-    /// let app = PreComputeApp::new();
-    /// pre_compute_app.chain_task_id = Some("0x123456789abcdef");
-    /// pre_compute_app.pre_compute_args = Some(PreComputeArgs::read_args()?);
-    ///
-    /// let encrypted = vec![/* ... */];
-    /// let decrypted = app.decrypt_dataset(&encrypted)?;
-    /// ```
+    /// This method is called internally during the pre-compute workflow to decrypt
+    /// a previously downloaded encrypted dataset using the provided AES key.
     fn decrypt_dataset(&self, encrypted_content: &[u8]) -> Result<Vec<u8>, ReplicateStatusCause> {
         let base64_key = self
             .pre_compute_args
@@ -269,16 +244,10 @@ impl PreComputeAppTrait for PreComputeApp {
     /// * `Ok(())` if the file is successfully saved.
     /// * `Err(ReplicateStatusCause::PreComputeSavingPlainDatasetFailed)` if the path is invalid or write fails.
     ///
-    /// # Example
+    /// # Note
     ///
-    /// ```
-    /// let app = PreComputeApp::new();
-    /// pre_compute_app.chain_task_id = Some("0x123456789abcdef");
-    /// pre_compute_app.pre_compute_args = Some(PreComputeArgs::read_args()?);
-    ///
-    /// let plain_data = vec![/* ... */];
-    /// app.save_plain_dataset_file(&plain_data)?;
-    /// ```
+    /// This method is called internally during the pre-compute workflow to save
+    /// the decrypted dataset to the specified output directory.
     fn save_plain_dataset_file(&self, plain_dataset: &[u8]) -> Result<(), ReplicateStatusCause> {
         let chain_task_id = self.chain_task_id.as_ref().unwrap();
         let args = self.pre_compute_args.as_ref().unwrap();
@@ -309,7 +278,7 @@ fn is_multi_address(uri: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compute::pre_compute_args::PreComputeArgs;
+    use tee_worker_pre_compute::compute::pre_compute_args::PreComputeArgs;
     use std::fs;
     use tempfile::TempDir;
     use testcontainers::core::WaitFor;

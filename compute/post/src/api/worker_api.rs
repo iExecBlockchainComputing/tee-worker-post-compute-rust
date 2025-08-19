@@ -24,8 +24,8 @@ use serde::Serialize;
 /// # Example
 ///
 /// ```
-/// use crate::api::worker_api::ExitMessage;
-/// use crate::compute::errors::ReplicateStatusCause;
+/// use tee_worker_post_compute::api::worker_api::ExitMessage;
+/// use tee_worker_post_compute::compute::errors::ReplicateStatusCause;
 ///
 /// let exit_message = ExitMessage::from(&ReplicateStatusCause::PostComputeInvalidTeeSignature);
 /// ```
@@ -48,7 +48,7 @@ impl<'a> From<&'a ReplicateStatusCause> for ExitMessage<'a> {
 /// # Example
 ///
 /// ```
-/// use crate::api::worker_api::WorkerApiClient;
+/// use tee_worker_post_compute::api::worker_api::WorkerApiClient;
 ///
 /// let client = WorkerApiClient::new("http://worker:13100");
 /// ```
@@ -79,7 +79,7 @@ impl WorkerApiClient {
     /// # Example
     ///
     /// ```
-    /// use crate::api::worker_api::WorkerApiClient;
+    /// use tee_worker_post_compute::api::worker_api::WorkerApiClient;
     ///
     /// let client = WorkerApiClient::from_env();
     /// ```
@@ -118,8 +118,8 @@ impl WorkerApiClient {
     /// # Example
     ///
     /// ```
-    /// use crate::api::worker_api::{ExitMessage, WorkerApiClient};
-    /// use crate::compute::errors::ReplicateStatusCause;
+    /// use tee_worker_post_compute::api::worker_api::{ExitMessage, WorkerApiClient};
+    /// use tee_worker_post_compute::compute::errors::ReplicateStatusCause;
     ///
     /// let client = WorkerApiClient::new("http://worker:13100");
     /// let exit_message = ExitMessage::from(&ReplicateStatusCause::PostComputeInvalidTeeSignature);
@@ -186,8 +186,8 @@ impl WorkerApiClient {
     /// # Example
     ///
     /// ```
-    /// use crate::api::worker_api::WorkerApiClient;
-    /// use crate::compute::computed_file::ComputedFile;
+    /// use tee_worker_post_compute::api::worker_api::WorkerApiClient;
+    /// use tee_worker_post_compute::compute::computed_file::ComputedFile;
     ///
     /// let client = WorkerApiClient::new("http://worker:13100");
     /// let computed_file = ComputedFile {
@@ -243,7 +243,7 @@ impl WorkerApiClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compute::utils::env_utils::TeeSessionEnvironmentVariable::*;
+    use tee_worker_post_compute::compute::utils::env_utils::TeeSessionEnvironmentVariable::*;
     use logtest::Logger;
     use once_cell::sync::Lazy;
     use serde_json::{json, to_string};

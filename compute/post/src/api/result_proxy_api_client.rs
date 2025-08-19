@@ -65,7 +65,7 @@ impl ResultProxyApiClient {
     /// # Example
     ///
     /// ```rust
-    /// use crate::api::result_proxy_api_client::ResultProxyApiClient;
+    /// use tee_worker_post_compute::api::result_proxy_api_client::ResultProxyApiClient;
     ///
     /// let client = ResultProxyApiClient::new("https://result.v8-bellecour.iex.ec");
     /// ```
@@ -110,14 +110,14 @@ impl ResultProxyApiClient {
     /// # Example
     ///
     /// ```rust
-    /// use crate::api::result_proxy_api_client::{ResultProxyApiClient, ResultModel};
+    /// use tee_worker_post_compute::api::result_proxy_api_client::{ResultProxyApiClient, ResultModel};
     ///
     /// let client = ResultProxyApiClient::new("https://result-proxy.iex.ec");
     /// let result_model = ResultModel {
     ///     chain_task_id: "0x123...".to_string(),
-    ///     zip: compressed_data,
-    ///     determinist_hash: computed_hash,
-    ///     enclave_signature: tee_signature,
+    ///     zip: vec![0xde, 0xad, 0xbe, 0xef],
+    ///     determinist_hash: "0xabc".to_string(),
+    ///     enclave_signature: "0xdef".to_string(),
     ///     ..Default::default()
     /// };
     ///

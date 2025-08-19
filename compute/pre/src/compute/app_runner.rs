@@ -31,15 +31,11 @@ pub enum ExitMode {
 ///
 /// * `pre_compute_app` - An implementation of [`PreComputeAppTrait`] that will be used to execute the pre-compute operations.
 ///
-/// # Example
+/// # Note
 ///
-/// ```
-/// use crate::app_runner::start;
-/// use crate::pre_compute_app::PreComputeApp;
-///
-/// let pre_compute_app = PreComputeApp::new();
-/// let exit_code = start_with_app(pre_compute_app);
-/// ```
+/// This is an internal function that accepts a pre-compute application instance
+/// and orchestrates the entire pre-compute workflow. Most users should use the
+/// [`start`] convenience function instead.
 pub fn start_with_app<A: PreComputeAppTrait>(pre_compute_app: &mut A) -> ExitMode {
     info!("TEE pre-compute started");
 
@@ -95,11 +91,17 @@ pub fn start_with_app<A: PreComputeAppTrait>(pre_compute_app: &mut A) -> ExitMod
 ///
 /// # Example
 ///
-/// ```
-/// use crate::app_runner::start;
+/// ```rust
+/// use tee_worker_pre_compute::compute::app_runner::{start, ExitMode};
 ///
 /// let exit_code = start();
-/// std::process::exit(exit_code);
+/// // The function will return one of the ExitMode variants
+/// match exit_code {
+///     ExitMode::Success => println!("Pre-compute completed successfully"),
+///     ExitMode::ReportedFailure => println!("Pre-compute failed (reported)"),
+///     ExitMode::UnreportedFailure => println!("Pre-compute failed (unreported)"),
+///     ExitMode::InitializationFailure => println!("Pre-compute initialization failed"),
+/// }
 /// ```
 pub fn start() -> ExitMode {
     let mut pre_compute_app = PreComputeApp::new();
@@ -109,7 +111,7 @@ pub fn start() -> ExitMode {
 #[cfg(test)]
 mod pre_compute_start_with_app_tests {
     use super::*;
-    use crate::compute::pre_compute_app::MockPreComputeAppTrait;
+    use tee_worker_pre_compute::compute::pre_compute_app::MockPreComputeAppTrait;
     use serde_json::json;
     use temp_env;
     use wiremock::matchers::{body_json, method, path};

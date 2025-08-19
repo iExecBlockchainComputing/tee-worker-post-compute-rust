@@ -1,5 +1,5 @@
 use crate::api::result_proxy_api_client::{ResultModel, ResultProxyApiClient};
-use crate::compute::{
+use super::{
     computed_file::ComputedFile,
     dropbox::{DROPBOX_CONTENT_BASE_URL, DropboxService, DropboxUploader},
     encryption::encrypt_data,
@@ -37,9 +37,9 @@ const DROPBOX_RESULT_STORAGE_PROVIDER: &str = "dropbox";
 /// # Example Implementation
 ///
 /// ```rust
-/// use crate::compute::web2_result::Web2ResultInterface;
-/// use crate::compute::computed_file::ComputedFile;
-/// use crate::compute::errors::ReplicateStatusCause;
+/// use tee_worker_post_compute::compute::web2_result::Web2ResultInterface;
+/// use tee_worker_post_compute::compute::computed_file::ComputedFile;
+/// use tee_worker_post_compute::compute::errors::ReplicateStatusCause;
 ///
 /// struct MockResultService;
 ///
@@ -49,6 +49,34 @@ const DROPBOX_RESULT_STORAGE_PROVIDER: &str = "dropbox";
 ///         Ok(())
 ///     }
 ///
+///     fn check_result_files_name(&self, task_id: &str, iexec_out_path: &str) -> Result<(), ReplicateStatusCause> {
+///         // Mock implementation for testing
+///         Ok(())
+///     }
+///
+///     fn zip_iexec_out(&self, iexec_out_path: &str, save_in: &str) -> Result<String, ReplicateStatusCause> {
+///         // Mock implementation for testing
+///         Ok("zip_file_path".to_string())
+///     }
+///
+///     fn eventually_encrypt_result(&self, in_data_file_path: &str) -> Result<String, ReplicateStatusCause> {
+///         // Mock implementation for testing
+///         Ok("encrypted_file_path".to_string())
+///     }
+///
+///     fn upload_result(&self, computed_file: &ComputedFile, file_to_upload_path: &str) -> Result<String, ReplicateStatusCause> {
+///         // Mock implementation for testing
+///         Ok("upload_result_path".to_string())
+///     }
+///     fn upload_to_ipfs_with_iexec_proxy(&self, computed_file: &ComputedFile, base_url: &str, token: &str, file_to_upload_path: &str) -> Result<String, ReplicateStatusCause> {
+///         // Mock implementation for testing
+///         Ok("ipfs_hash".to_string())
+///     }
+///
+///     fn upload_to_dropbox(&self, computed_file: &ComputedFile, token: &str, file_to_upload_path: &str) -> Result<String, ReplicateStatusCause> {
+///         // Mock implementation for testing
+///         Ok("dropbox_path".to_string())
+///     }
 ///     // ... implement other methods
 /// }
 /// ```
@@ -101,8 +129,8 @@ pub trait Web2ResultInterface {
 /// # Example
 ///
 /// ```rust
-/// use crate::compute::web2_result::{Web2ResultService, Web2ResultInterface};
-/// use crate::compute::computed_file::ComputedFile;
+/// use tee_worker_post_compute::compute::web2_result::{Web2ResultService, Web2ResultInterface};
+/// use tee_worker_post_compute::compute::computed_file::ComputedFile;
 ///
 /// let service = Web2ResultService;
 /// let computed_file = ComputedFile {
@@ -153,19 +181,10 @@ impl Web2ResultService {
     /// - An I/O error occurs during file copying
     /// - The ZIP writer encounters an error
     ///
-    /// # Example
+    /// # Note
     ///
-    /// ```rust
-    /// use std::fs::File;
-    /// use zip::{ZipWriter, write::FileOptions};
-    ///
-    /// let file = File::create("output.zip")?;
-    /// let mut zip = ZipWriter::new(file);
-    /// let options = FileOptions::default();
-    ///
-    /// service.add_directory_to_zip(&mut zip, Path::new("/path/to/source"), options)?;
-    /// zip.finish()?;
-    /// ```
+    /// This is an internal helper method used by the public ZIP creation functions.
+    /// It recursively walks through the source directory and adds all files to the ZIP archive.
     fn add_directory_to_zip<W: Write + io::Seek>(
         &self,
         zip: &mut ZipWriter<W>,
@@ -635,7 +654,7 @@ impl Web2ResultInterface for Web2ResultService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compute::dropbox::MockDropboxUploader;
+    use tee_worker_post_compute::compute::dropbox::MockDropboxUploader;
     use mockall::predicate::{eq, function};
     use std::os::unix::fs::symlink;
     use temp_env::{self, with_vars};

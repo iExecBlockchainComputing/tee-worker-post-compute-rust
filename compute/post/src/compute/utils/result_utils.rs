@@ -31,7 +31,7 @@ use std::{
 /// # Example
 ///
 /// ```
-/// use crate::compute::{computed_file::ComputedFile, utils::result_utils::compute_web3_result_digest};
+/// use tee_worker_post_compute::compute::{computed_file::ComputedFile, utils::result_utils::compute_web3_result_digest};
 ///
 /// let computed_file = ComputedFile {
 ///     task_id: Some("0x123".to_string()),
@@ -94,7 +94,7 @@ pub fn compute_web3_result_digest(computed_file: &ComputedFile) -> String {
 /// # Example
 ///
 /// ```
-/// use crate::compute::{computed_file::ComputedFile, utils::result_utils::compute_web2_result_digest};
+/// use tee_worker_post_compute::compute::{computed_file::ComputedFile, utils::result_utils::compute_web2_result_digest};
 ///
 /// let computed_file = ComputedFile {
 ///     task_id: Some("0x123".to_string()),
@@ -162,7 +162,7 @@ pub fn compute_web2_result_digest(computed_file: &ComputedFile) -> String {
 ///
 /// ```
 /// use std::path::Path;
-/// use crate::compute::utils::result_utils::sha256_file;
+/// use tee_worker_post_compute::compute::utils::result_utils::sha256_file;
 ///
 /// let file_path = Path::new("/path/to/result.txt");
 /// let hash = sha256_file(&file_path);
@@ -227,7 +227,7 @@ pub fn sha256_file(file_path: &Path) -> String {
 ///
 /// ```
 /// use std::path::Path;
-/// use crate::compute::utils::result_utils::get_file_tree_sha256;
+/// use tee_worker_post_compute::compute::utils::result_utils::get_file_tree_sha256;
 ///
 /// // Single file
 /// let file_path = Path::new("/path/to/result.txt");
