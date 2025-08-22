@@ -415,7 +415,7 @@ mod tests {
     }
 
     #[test]
-    fn test_download_failure_returns_error() {
+    fn download_input_files_returns_error_when_download_failure_occurs() {
         let temp_dir = TempDir::new().unwrap();
         let app = get_pre_compute_app(
             CHAIN_TASK_ID,
@@ -431,7 +431,7 @@ mod tests {
     }
 
     #[test]
-    fn test_partial_failure_stops_on_first_error() {
+    fn download_input_files_stops_on_first_error_when_partial_failure_occurs() {
         let (_container, json_url, xml_url) = start_container();
 
         let temp_dir = TempDir::new().unwrap();

@@ -235,28 +235,28 @@ mod tests {
 
     // region download_file
     #[test]
-    fn test_empty_url() {
+    fn extract_filename_returns_error_when_url_is_empty() {
         assert!(download_file("", PARENT_DIR, FILE_NAME).is_none());
     }
 
     #[test]
-    fn test_empty_parent_dir() {
+    fn extract_filename_returns_error_when_parent_dir_is_empty() {
         assert!(download_file(URL, "", FILE_NAME).is_none());
     }
 
     #[test]
-    fn test_empty_filename() {
+    fn extract_filename_returns_error_when_filename_is_empty() {
         assert!(download_file(URL, PARENT_DIR, "").is_none());
     }
 
     #[test]
-    fn test_invalid_url() {
+    fn extract_filename_returns_error_when_url_is_invalid() {
         let result = download_file("not-a-url", PARENT_DIR, FILE_NAME);
         assert!(result.is_none());
     }
 
     #[test]
-    fn test_successful_download() {
+    fn extract_filename_returns_filename_when_url_is_valid() {
         let (_container, container_url) = start_container();
 
         let result = download_file(&container_url, PARENT_DIR, FILE_NAME);
@@ -272,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn test_creates_parent_directory() {
+    fn write_file_creates_parent_directory_when_directory_does_not_exist() {
         let (_container, container_url) = start_container();
 
         let temp_dir = TempDir::new().unwrap();
@@ -291,7 +291,7 @@ mod tests {
 
     // region download_from_url
     #[test]
-    fn test_download_from_url_success() {
+    fn download_from_url_succeeds_when_url_and_path_are_valid() {
         let (_container, container_url) = start_container();
 
         let result = download_from_url(&container_url);
@@ -301,19 +301,19 @@ mod tests {
     }
 
     #[test]
-    fn test_download_from_url_with_empty_url() {
+    fn download_from_url_returns_error_when_url_is_empty() {
         let result = download_from_url("");
         assert!(result.is_none());
     }
 
     #[test]
-    fn test_download_from_url_with_invalid_url() {
+    fn download_from_url_returns_error_when_url_is_invalid() {
         let result = download_from_url("not-a-valid-url");
         assert!(result.is_none());
     }
 
     #[test]
-    fn test_download_from_url_with_server_error() {
+    fn download_from_url_returns_error_when_server_returns_error() {
         let rt = tokio::runtime::Runtime::new().unwrap();
 
         let mock_server = rt.block_on(async {
@@ -335,7 +335,7 @@ mod tests {
 
     // region write_file
     #[test]
-    fn test_write_file_success() {
+    fn write_file_succeeds_when_path_and_content_are_valid() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test_write.txt");
         let content = b"hello world!";
@@ -349,7 +349,7 @@ mod tests {
     }
 
     #[test]
-    fn test_write_file_failure_invalid_path() {
+    fn write_file_returns_error_when_path_is_invalid() {
         let file_path = Path::new("/invalid_dir_123456789/test.txt");
         let content = b"should fail";
         let context = "test_write_file_failure_invalid_path";
@@ -358,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    fn test_write_file_overwrite() {
+    fn write_file_overwrites_existing_file_when_same_path_used() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("overwrite.txt");
         let context = "test_write_file_overwrite";

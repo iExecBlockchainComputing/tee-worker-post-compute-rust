@@ -308,7 +308,7 @@ mod tests {
     const TEST_TASK_ID: &str = "0x123456789abcdef";
 
     #[test]
-    fn computed_file_serializes_to_kebab_case() {
+    fn computed_file_serializes_to_kebab_case_when_converted_to_json() {
         let file = ComputedFile {
             deterministic_output_path: Some("/iexec_out/result.txt".to_string()),
             callback_data: Some("0xabc".to_string()),

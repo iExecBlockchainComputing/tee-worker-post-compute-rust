@@ -106,7 +106,7 @@ mod tests {
     // ========== UNIFIED SIGNATURE TESTS ==========
 
     #[test]
-    fn test_sign_enclave_challenge_pre_compute_success() {
+    fn sign_enclave_challenge_for_stage_returns_correct_signature_when_pre_compute_stage_and_valid_inputs_provided() {
         let result = sign_enclave_challenge_for_stage(
             ComputeStage::PreCompute,
             MESSAGE_HASH,
@@ -117,7 +117,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_enclave_challenge_post_compute_success() {
+    fn sign_enclave_challenge_for_stage_returns_correct_signature_when_post_compute_stage_and_valid_inputs_provided() {
         let result = sign_enclave_challenge_for_stage(
             ComputeStage::PostCompute,
             MESSAGE_HASH,
@@ -128,7 +128,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_enclave_challenge_invalid_key_pre_compute() {
+    fn sign_enclave_challenge_for_stage_returns_error_when_pre_compute_stage_and_invalid_key_provided() {
         let result = sign_enclave_challenge_for_stage(
             ComputeStage::PreCompute,
             MESSAGE_HASH,
@@ -143,7 +143,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sign_enclave_challenge_invalid_key_post_compute() {
+    fn sign_enclave_challenge_for_stage_returns_error_when_post_compute_stage_and_invalid_key_provided() {
         let result = sign_enclave_challenge_for_stage(
             ComputeStage::PostCompute,
             MESSAGE_HASH,
@@ -160,7 +160,7 @@ mod tests {
     // ========== UNIFIED CHALLENGE TESTS ==========
 
     #[test]
-    fn test_get_challenge_pre_compute_success() {
+    fn get_challenge_for_stage_returns_correct_signature_when_pre_compute_stage_and_valid_env_vars_provided() {
         with_vars(
             vec![
                 ("SIGN_WORKER_ADDRESS", Some(WORKER_ADDRESS)),
@@ -183,7 +183,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_challenge_post_compute_success() {
+    fn get_challenge_for_stage_returns_correct_signature_when_post_compute_stage_and_valid_env_vars_provided() {
         with_vars(
             vec![
                 (TeeSessionEnvironmentVariable::SignWorkerAddress.name(), Some(WORKER_ADDRESS)),
@@ -206,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_challenge_missing_worker_address_pre_compute() {
+    fn get_challenge_for_stage_returns_worker_address_missing_error_when_pre_compute_stage_and_worker_address_env_var_missing() {
         with_vars(
             vec![("SIGN_TEE_CHALLENGE_PRIVATE_KEY", Some(ENCLAVE_CHALLENGE_PRIVATE_KEY))],
             || {
@@ -222,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_challenge_missing_worker_address_post_compute() {
+    fn get_challenge_for_stage_returns_worker_address_missing_error_when_post_compute_stage_and_worker_address_env_var_missing() {
         with_vars(
             vec![(TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey.name(), Some(ENCLAVE_CHALLENGE_PRIVATE_KEY))],
             || {
@@ -238,7 +238,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_challenge_missing_private_key_pre_compute() {
+    fn get_challenge_for_stage_returns_private_key_missing_error_when_pre_compute_stage_and_private_key_env_var_missing() {
         with_vars(
             vec![("SIGN_WORKER_ADDRESS", Some(WORKER_ADDRESS))],
             || {
@@ -254,7 +254,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_challenge_missing_private_key_post_compute() {
+    fn get_challenge_for_stage_returns_private_key_missing_error_when_post_compute_stage_and_private_key_env_var_missing() {
         with_vars(
             vec![(TeeSessionEnvironmentVariable::SignWorkerAddress.name(), Some(WORKER_ADDRESS))],
             || {
@@ -270,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_challenge_missing_both_env_vars_pre_compute() {
+    fn get_challenge_for_stage_returns_worker_address_missing_error_when_pre_compute_stage_and_both_env_vars_missing() {
         with_vars(Vec::<(&str, Option<&str>)>::new(), || {
             let result = get_challenge_for_stage(ComputeStage::PreCompute, CHAIN_TASK_ID);
             assert!(result.is_err(), "Pre-compute challenge should fail without any env vars");
@@ -283,7 +283,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_challenge_missing_both_env_vars_post_compute() {
+    fn get_challenge_for_stage_returns_worker_address_missing_error_when_post_compute_stage_and_both_env_vars_missing() {
         with_vars(Vec::<(&str, Option<&str>)>::new(), || {
             let result = get_challenge_for_stage(ComputeStage::PostCompute, CHAIN_TASK_ID);
             assert!(result.is_err(), "Post-compute challenge should fail without any env vars");
@@ -300,7 +300,7 @@ mod tests {
     // ========== CONSISTENCY TESTS ==========
 
     #[test]
-    fn test_signature_consistency_across_stages() {
+    fn sign_enclave_challenge_for_stage_produces_identical_signatures_when_same_inputs_provided_across_different_stages() {
         // Both stages should produce the same signature for the same input
         let pre_signature = sign_enclave_challenge_for_stage(
             ComputeStage::PreCompute,
@@ -319,7 +319,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deterministic_challenge_generation() {
+    fn get_challenge_for_stage_produces_deterministic_results_when_same_inputs_provided_multiple_times() {
         // Challenge generation should be deterministic for same inputs
         with_vars(
             vec![

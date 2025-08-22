@@ -275,7 +275,7 @@ mod tests {
 
     // region ExitMessage()
     #[test]
-    fn should_serialize_exit_message() {
+    fn exit_message_serializes_correctly_when_created_from_replicate_status_cause() {
         let causes = [
             (
                 ReplicateStatusCause::PreComputeInvalidTeeSignature,
@@ -302,7 +302,7 @@ mod tests {
 
     // region get_worker_api_client
     #[test]
-    fn should_get_worker_api_client_with_env_var() {
+    fn worker_api_client_uses_custom_host_when_env_var_set() {
         with_vars(
             vec![(WorkerHostEnvVar.name(), Some("custom-worker-host:9999"))],
             || {
@@ -313,7 +313,7 @@ mod tests {
     }
 
     #[test]
-    fn should_get_worker_api_client_without_env_var() {
+    fn worker_api_client_uses_default_host_when_env_var_missing() {
         temp_env::with_vars_unset(vec![WorkerHostEnvVar.name()], || {
             let client = WorkerApiClient::from_env();
             assert_eq!(client.base_url, format!("http://{DEFAULT_WORKER_HOST}"));
@@ -326,7 +326,7 @@ mod tests {
     const CHAIN_TASK_ID: &str = "0x123456789abcdef";
 
     #[tokio::test]
-    async fn should_send_pre_compute_exit_cause() {
+    async fn send_exit_cause_for_pre_compute_stage_succeeds_when_server_returns_200() {
         let mock_server = MockServer::start().await;
         let server_url = mock_server.uri();
 
@@ -360,7 +360,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_not_send_pre_compute_exit_cause() {
+    async fn send_exit_cause_for_pre_compute_stage_returns_error_when_server_returns_503() {
         testing_logger::setup();
         let mock_server = MockServer::start().await;
         let server_url = mock_server.uri();
@@ -406,7 +406,7 @@ mod tests {
     }
 
     #[test]
-    fn test_send_exit_cause_http_request_failure() {
+    fn send_exit_cause_for_pre_compute_stage_returns_error_when_http_request_fails() {
         testing_logger::setup();
         let exit_message = ExitMessage::from(&ReplicateStatusCause::PreComputeFailedUnknownIssue);
         let worker_api_client = WorkerApiClient::new("wrong_url");
@@ -438,7 +438,7 @@ mod tests {
     // region send_exit_cause_for_post_compute_stage()
 
     #[tokio::test]
-    async fn should_send_post_compute_exit_cause() {
+    async fn send_exit_cause_for_post_compute_stage_succeeds_when_server_returns_200() {
         let mock_server = MockServer::start().await;
         let server_url = mock_server.uri();
 
@@ -472,7 +472,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_not_send_post_compute_exit_cause() {
+    async fn send_exit_cause_for_post_compute_stage_returns_error_when_server_returns_503() {
         testing_logger::setup();
         let mock_server = MockServer::start().await;
         let server_url = mock_server.uri();
@@ -516,7 +516,7 @@ mod tests {
 
     // region Unified API Tests
     #[tokio::test]
-    async fn test_unified_send_exit_cause_pre_compute() {
+    async fn send_exit_cause_for_compute_stage_succeeds_when_pre_compute_stage_provided() {
         let mock_server = MockServer::start().await;
         let server_url = mock_server.uri();
 
@@ -561,7 +561,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_unified_send_exit_cause_post_compute() {
+    async fn send_exit_cause_for_compute_stage_succeeds_when_post_compute_stage_provided() {
         let mock_server = MockServer::start().await;
         let server_url = mock_server.uri();
 
@@ -605,7 +605,7 @@ mod tests {
     }
 
     #[test]
-    fn test_unified_error_stage_mapping() {
+    fn send_exit_cause_for_compute_stage_maps_errors_correctly_when_http_request_fails() {
         let client = WorkerApiClient::new("http://invalid-url");
         let exit_message = ExitMessage::from(&ReplicateStatusCause::PreComputeFailedUnknownIssue);
 
@@ -630,7 +630,7 @@ mod tests {
     }
 
     #[test]
-    fn test_unified_backward_compatibility() {
+    fn send_exit_cause_wrapper_functions_produce_same_results_when_called_with_same_inputs() {
         // Ensure wrapper methods behave exactly like the unified implementation
         let client = WorkerApiClient::new("http://invalid-url");
         let exit_message = ExitMessage::from(&ReplicateStatusCause::PreComputeFailedUnknownIssue);

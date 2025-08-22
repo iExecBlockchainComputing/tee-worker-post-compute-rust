@@ -335,11 +335,11 @@ mod tests {
             ),
         ];
         for (env_var, error) in missing_env_var_causes {
-            test_read_args_fails_with_missing_env_var(env_var, error);
+            read_args_fails_when_required_env_var_missing(env_var, error);
         }
     }
 
-    fn test_read_args_fails_with_missing_env_var(
+    fn read_args_fails_when_required_env_var_missing(
         env_var: TeeSessionEnvironmentVariable,
         error: ReplicateStatusCause,
     ) {

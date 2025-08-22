@@ -126,7 +126,7 @@ mod tests {
     use serde_json::to_string;
 
     #[test]
-    fn test_shared_error_creation() {
+    fn map_error_creates_correct_variant_when_stage_and_type_provided() {
         let error1 = ReplicateStatusCause::map_error(
             ComputeStage::PreCompute,
             BaseErrorType::WorkerAddressMissing
@@ -136,7 +136,7 @@ mod tests {
     }
 
     #[test]
-    fn test_serialization_unchanged() {
+    fn replicate_status_cause_serializes_to_screaming_snake_case_when_converted_to_json() {
         let error = ReplicateStatusCause::PreComputeWorkerAddressMissing;
         let serialized = to_string(&error).unwrap();
         assert!(serialized.contains("PRE_COMPUTE_WORKER_ADDRESS_MISSING"));

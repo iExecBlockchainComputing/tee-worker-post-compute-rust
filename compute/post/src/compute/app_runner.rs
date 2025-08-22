@@ -341,7 +341,7 @@ mod tests {
 
     // region start
     #[test]
-    fn start_return_3_when_task_id_missing() {
+    fn start_returns_3_when_task_id_missing() {
         with_vars(
             vec![(
                 TeeSessionEnvironmentVariable::IexecTaskId.name(),
@@ -360,7 +360,7 @@ mod tests {
     }
 
     #[test]
-    fn start_return_3_when_empty_task_id() {
+    fn start_returns_3_when_empty_task_id() {
         with_vars(
             vec![(TeeSessionEnvironmentVariable::IexecTaskId.name(), Some(""))],
             || {
@@ -376,7 +376,7 @@ mod tests {
     }
 
     #[test]
-    fn start_return_0_when_successful() {
+    fn start_returns_0_when_successful() {
         with_vars(
             vec![(
                 TeeSessionEnvironmentVariable::IexecTaskId.name(),
@@ -395,7 +395,7 @@ mod tests {
     }
 
     #[test]
-    fn start_return_1_when_fail_with_known_cause() {
+    fn start_returns_1_when_fail_with_known_cause() {
         with_vars(
             vec![(
                 TeeSessionEnvironmentVariable::IexecTaskId.name(),
@@ -417,7 +417,7 @@ mod tests {
     }
 
     #[test]
-    fn start_return_1_when_fail_with_unknown_cause() {
+    fn start_returns_1_when_fail_with_unknown_cause() {
         with_vars(
             vec![(
                 TeeSessionEnvironmentVariable::IexecTaskId.name(),
@@ -437,7 +437,7 @@ mod tests {
     }
 
     #[test]
-    fn start_return_2_when_exit_cause_not_transmitted() {
+    fn start_returns_2_when_exit_cause_not_transmitted() {
         with_vars(
             vec![(
                 TeeSessionEnvironmentVariable::IexecTaskId.name(),
@@ -461,7 +461,7 @@ mod tests {
     }
 
     #[test]
-    fn start_return_2_when_get_challenge_fails() {
+    fn start_returns_2_when_get_challenge_fails() {
         with_vars(
             vec![(
                 TeeSessionEnvironmentVariable::IexecTaskId.name(),
@@ -531,7 +531,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_send_computed_file_success() {
+    async fn send_computed_file_succeeds_when_all_operations_successful() {
         let mock_server = MockServer::start().await;
         let server_url = mock_server.uri();
 
@@ -548,7 +548,7 @@ mod tests {
     }
 
     #[test]
-    fn send_computed_file_fails_when_task_id_missing() {
+    fn send_computed_file_returns_error_when_task_id_missing() {
         let runner = DefaultPostComputeRunner::new();
         let computed_file = create_test_computed_file(None);
 
@@ -563,7 +563,7 @@ mod tests {
     }
 
     #[test]
-    fn send_computed_file_fails_when_get_challenge_fails() {
+    fn send_computed_file_returns_error_when_get_challenge_fails() {
         with_vars(
             vec![(
                 TeeSessionEnvironmentVariable::SignWorkerAddress.name(),
