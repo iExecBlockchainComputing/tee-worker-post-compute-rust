@@ -23,7 +23,7 @@ sha3 = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-mockall = "0.13.1"
+mockall = { workspace = true }
 serde_json = { workspace = true }
 temp-env = { workspace = true }
 tempfile = { workspace = true }

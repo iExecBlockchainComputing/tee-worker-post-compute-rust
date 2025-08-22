@@ -52,8 +52,8 @@ impl<'a> From<&'a ReplicateStatusCause> for ExitMessage<'a> {
 /// let client = WorkerApiClient::new("http://worker:13100");
 /// ```
 pub struct WorkerApiClient {
-    base_url: String,
-    client: Client,
+    pub base_url: String,
+    pub client: Client,
 }
 
 const DEFAULT_WORKER_HOST: &str = "worker:13100";
@@ -162,6 +162,78 @@ impl WorkerApiClient {
             }
         }
     }
+
+    /// Sends an exit cause for a post-compute operation to the Worker API.
+    ///
+    /// This method reports the exit cause of a post-compute operation to the Worker API,
+    /// which can be used for tracking and debugging purposes.
+    ///
+    /// # Arguments
+    ///
+    /// * `authorization` - The authorization token to use for the API request
+    /// * `chain_task_id` - The chain task ID for which to report the exit cause
+    /// * `exit_cause` - The exit cause to report
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the exit cause was successfully reported
+    /// * `Err(Error)` - If the exit cause could not be reported due to an HTTP error
+    ///
+    /// # Errors
+    ///
+    /// This function will return an [`Error`] if the request could not be sent or
+    /// the server responded with a non‑success status.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use tee_worker_post_compute::api::worker_api::{ExitMessage, WorkerApiClient};
+    /// use tee_worker_post_compute::compute::errors::ReplicateStatusCause;
+    ///
+    /// let client = WorkerApiClient::new("http://worker:13100");
+    /// let exit_message = ExitMessage::from(&ReplicateStatusCause::PostComputeInvalidTeeSignature);
+    ///
+    /// match client.send_exit_cause_for_post_compute_stage(
+    ///     "authorization_token",
+    ///     "0x123456789abcdef",
+    ///     &exit_message,
+    /// ) {
+    ///     Ok(()) => println!("Exit cause reported successfully"),
+    ///     Err(error) => eprintln!("Failed to report exit cause: {}", error),
+    /// }
+    /// ```
+    pub fn send_exit_cause_for_post_compute_stage(
+        &self,
+        authorization: &str,
+        chain_task_id: &str,
+        exit_cause: &ExitMessage,
+    ) -> Result<(), ReplicateStatusCause> {
+        let url = format!("{}/compute/post/{chain_task_id}/exit", self.base_url);
+        match self
+            .client
+            .post(&url)
+            .header(AUTHORIZATION, authorization)
+            .json(exit_cause)
+            .send()
+        {
+            Ok(response) => {
+                if response.status().is_success() {
+                    Ok(())
+                } else {
+                    let status = response.status();
+                    let body = response.text().unwrap_or_default();
+                    error!(
+                        "Failed to send exit cause to worker: [status:{status:?}, body:{body:#?}]"
+                    );
+                    Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
+                }
+            }
+            Err(e) => {
+                error!("An error occured while sending exit cause to worker: {e}");
+                Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -228,7 +300,7 @@ mod tests {
     const CHAIN_TASK_ID: &str = "0x123456789abcdef";
 
     #[tokio::test]
-    async fn should_send_exit_cause() {
+    async fn should_send_pre_compute_exit_cause() {
         let mock_server = MockServer::start().await;
         let server_url = mock_server.uri();
 
@@ -262,7 +334,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_not_send_exit_cause() {
+    async fn should_not_send_pre_compute_exit_cause() {
         testing_logger::setup();
         let mock_server = MockServer::start().await;
         let server_url = mock_server.uri();
@@ -333,6 +405,86 @@ mod tests {
         assert_eq!(
             result,
             Err(ReplicateStatusCause::PreComputeFailedUnknownIssue)
+        );
+    }
+    // endregion
+
+    // region send_exit_cause_for_post_compute_stage()
+
+    #[tokio::test]
+    async fn should_send_post_compute_exit_cause() {
+        let mock_server = MockServer::start().await;
+        let server_url = mock_server.uri();
+
+        let expected_body = json!({
+            "cause": ReplicateStatusCause::PostComputeInvalidTeeSignature,
+        });
+
+        Mock::given(method("POST"))
+            .and(path(format!("/compute/post/{CHAIN_TASK_ID}/exit")))
+            .and(header("Authorization", CHALLENGE))
+            .and(body_json(&expected_body))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let result = tokio::task::spawn_blocking(move || {
+            let exit_message =
+                ExitMessage::from(&ReplicateStatusCause::PostComputeInvalidTeeSignature);
+            let worker_api_client = WorkerApiClient::new(&server_url);
+            worker_api_client.send_exit_cause_for_post_compute_stage(
+                CHALLENGE,
+                CHAIN_TASK_ID,
+                &exit_message,
+            )
+        })
+        .await
+        .expect("Task panicked");
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn should_not_send_post_compute_exit_cause() {
+        testing_logger::setup();
+        let mock_server = MockServer::start().await;
+        let server_url = mock_server.uri();
+
+        Mock::given(method("POST"))
+            .and(path(format!("/compute/post/{CHAIN_TASK_ID}/exit")))
+            .respond_with(ResponseTemplate::new(404))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let result = tokio::task::spawn_blocking(move || {
+            let exit_message =
+                ExitMessage::from(&ReplicateStatusCause::PostComputeFailedUnknownIssue);
+            let worker_api_client = WorkerApiClient::new(&server_url);
+            let response = worker_api_client.send_exit_cause_for_post_compute_stage(
+                CHALLENGE,
+                CHAIN_TASK_ID,
+                &exit_message,
+            );
+            testing_logger::validate(|captured_logs| {
+                let logs = captured_logs
+                    .iter()
+                    .filter(|c| c.level == log::Level::Error)
+                    .collect::<Vec<&testing_logger::CapturedLog>>();
+
+                assert_eq!(logs.len(), 1);
+                assert!(logs[0].body.contains("status:404"));
+            });
+            response
+        })
+        .await
+        .expect("Task panicked");
+
+        assert!(result.is_err());
+        assert_eq!(
+            result,
+            Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
         );
     }
     // endregion

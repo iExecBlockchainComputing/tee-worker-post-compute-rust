@@ -1,4 +1,4 @@
-use crate::api::worker_api::{ExitMessage, WorkerApiClient};
+use crate::api::result_sender_api_client::ResultSenderApiClient;
 use crate::compute::{
     computed_file::{
         ComputedFile, build_result_digest_in_computed_file, read_computed_file, sign_computed_file,
@@ -9,6 +9,7 @@ use shared::{
     errors::ReplicateStatusCause,
     signer::post_signer::get_challenge,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
+    worker_api::{ExitMessage, WorkerApiClient},
 };
 use log::{error, info};
 
@@ -117,7 +118,8 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
             }
         };
         let authorization = self.get_challenge(task_id)?;
-        match self.worker_api_client.send_computed_file_to_host(
+        let sender = ResultSenderApiClient::new(&self.worker_api_client);
+        match sender.send_computed_file_to_host(
             &authorization,
             task_id,
             computed_file,
