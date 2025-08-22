@@ -1,6 +1,23 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+/// Compute stage context for internal error handling
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum ComputeStage {
+    PreCompute,
+    PostCompute,
+}
+
+/// Base error categories that can occur in either stage
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum BaseErrorType {
+    FailedUnknownIssue,
+    InvalidTeeSignature,
+    TaskIdMissing,
+    TeeChallengePrivateKeyMissing,
+    WorkerAddressMissing,
+}
+
 #[derive(Debug, PartialEq, Clone, Error, Serialize, Deserialize)]
 #[serde(rename_all(serialize = "SCREAMING_SNAKE_CASE"))]
 #[allow(clippy::enum_variant_names)]
@@ -82,4 +99,46 @@ pub enum ReplicateStatusCause {
     PostComputeTooLongResultFileName,
     #[error("Worker address related environment variable is missing")]
     PostComputeWorkerAddressMissing,
+}
+
+impl ReplicateStatusCause {
+    /// Creates a shared error for the specified stage
+    pub fn map_error(stage: ComputeStage, error_type: BaseErrorType) -> Self {
+        match (stage, error_type) {
+            (ComputeStage::PreCompute, BaseErrorType::FailedUnknownIssue) => Self::PreComputeFailedUnknownIssue,
+            (ComputeStage::PreCompute, BaseErrorType::InvalidTeeSignature) => Self::PreComputeInvalidTeeSignature,
+            (ComputeStage::PreCompute, BaseErrorType::TaskIdMissing) => Self::PreComputeTaskIdMissing,
+            (ComputeStage::PreCompute, BaseErrorType::TeeChallengePrivateKeyMissing) => Self::PreComputeTeeChallengePrivateKeyMissing,
+            (ComputeStage::PreCompute, BaseErrorType::WorkerAddressMissing) => Self::PreComputeWorkerAddressMissing,
+
+            (ComputeStage::PostCompute, BaseErrorType::FailedUnknownIssue) => Self::PostComputeFailedUnknownIssue,
+            (ComputeStage::PostCompute, BaseErrorType::InvalidTeeSignature) => Self::PostComputeInvalidTeeSignature,
+            (ComputeStage::PostCompute, BaseErrorType::TaskIdMissing) => Self::PostComputeTaskIdMissing,
+            (ComputeStage::PostCompute, BaseErrorType::TeeChallengePrivateKeyMissing) => Self::PostComputeTeeChallengePrivateKeyMissing,
+            (ComputeStage::PostCompute, BaseErrorType::WorkerAddressMissing) => Self::PostComputeWorkerAddressMissing,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::to_string;
+
+    #[test]
+    fn test_shared_error_creation() {
+        let error1 = ReplicateStatusCause::map_error(
+            ComputeStage::PreCompute,
+            BaseErrorType::WorkerAddressMissing
+        );
+        let error2 = ReplicateStatusCause::PreComputeWorkerAddressMissing;
+        assert_eq!(error1, error2);
+    }
+
+    #[test]
+    fn test_serialization_unchanged() {
+        let error = ReplicateStatusCause::PreComputeWorkerAddressMissing;
+        let serialized = to_string(&error).unwrap();
+        assert!(serialized.contains("PRE_COMPUTE_WORKER_ADDRESS_MISSING"));
+    }
 }

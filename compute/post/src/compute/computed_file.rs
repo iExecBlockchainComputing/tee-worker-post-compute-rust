@@ -3,8 +3,8 @@ use crate::compute::result_utils::{
     compute_web3_result_digest,
 };
 use shared::{
-    errors::ReplicateStatusCause,
-    signer::post_signer::sign_enclave_challenge,
+    errors::{ReplicateStatusCause, ComputeStage},
+    signer::sign_enclave_challenge_for_stage,
     utils::{
         env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
         hash_utils::concatenate_and_hash,
@@ -287,7 +287,11 @@ pub fn sign_computed_file(computed_file: &mut ComputedFile) -> Result<(), Replic
         ReplicateStatusCause::PostComputeTeeChallengePrivateKeyMissing,
     )?;
 
-    let enclave_signature = sign_enclave_challenge(&message_hash, &tee_challenge_private_key)?;
+    let enclave_signature = sign_enclave_challenge_for_stage(
+        ComputeStage::PostCompute,
+        &message_hash,
+        &tee_challenge_private_key,
+    )?;
 
     computed_file.enclave_signature = Some(enclave_signature);
     info!("Signer stage completed");

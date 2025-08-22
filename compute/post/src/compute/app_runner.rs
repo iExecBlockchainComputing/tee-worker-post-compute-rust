@@ -6,8 +6,8 @@ use crate::compute::{
     web2_result::{Web2ResultInterface, Web2ResultService},
 };
 use shared::{
-    errors::ReplicateStatusCause,
-    signer::post_signer::get_challenge,
+    errors::{ReplicateStatusCause, ComputeStage},
+    signer::get_challenge_for_stage,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
     worker_api::{ExitMessage, WorkerApiClient},
 };
@@ -33,7 +33,7 @@ pub enum ExitMode {
 /// the post-compute workflow.
 pub trait PostComputeRunnerInterface {
     fn run_post_compute(&self, chain_task_id: &str) -> Result<(), ReplicateStatusCause>;
-    fn get_challenge(&self, chain_task_id: &str) -> Result<String, ReplicateStatusCause>;
+    fn get_challenge_for_stage(&self, stage: ComputeStage, chain_task_id: &str) -> Result<String, ReplicateStatusCause>;
     fn send_exit_cause(
         &self,
         authorization: &str,
@@ -94,8 +94,8 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
         Ok(())
     }
 
-    fn get_challenge(&self, chain_task_id: &str) -> Result<String, ReplicateStatusCause> {
-        get_challenge(chain_task_id)
+    fn get_challenge_for_stage(&self, stage: ComputeStage, chain_task_id: &str) -> Result<String, ReplicateStatusCause> {
+        get_challenge_for_stage(stage, chain_task_id)
     }
 
     fn send_exit_cause(
@@ -117,7 +117,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
                 return Err(ReplicateStatusCause::PostComputeFailedUnknownIssue);
             }
         };
-        let authorization = self.get_challenge(task_id)?;
+        let authorization = self.get_challenge_for_stage(ComputeStage::PostCompute, task_id)?;
         let sender = ResultSenderApiClient::new(&self.worker_api_client);
         match sender.send_computed_file_to_host(
             &authorization,
@@ -164,7 +164,7 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
 ///     fn run_post_compute(&self, _: &str) -> Result<(), ReplicateStatusCause> {
 ///         Ok(())
 ///     }
-///     fn get_challenge(&self, _: &str) -> Result<String, ReplicateStatusCause> {
+///     fn get_challenge_for_stage(&self, _: ComputeStage, _: &str) -> Result<String, ReplicateStatusCause> {
 ///         Ok("challenge".to_string())
 ///     }
 ///     fn send_exit_cause(&self, _: &str, _: &str, _: &ExitMessage<'_>) -> Result<(), ReplicateStatusCause> {
@@ -199,7 +199,7 @@ pub fn start_with_runner<R: PostComputeRunnerInterface>(runner: &R) -> ExitMode 
         Err(exit_cause) => {
             error!("TEE post-compute failed with exit cause [errorMessage:{exit_cause}]");
 
-            let authorization: String = match runner.get_challenge(&chain_task_id) {
+            let authorization: String = match runner.get_challenge_for_stage(ComputeStage::PostCompute, &chain_task_id) {
                 Ok(challenge) => challenge,
                 Err(_) => {
                     error!("Failed to retrieve authorization [taskId:{chain_task_id}]");
@@ -304,7 +304,7 @@ mod tests {
             }
         }
 
-        fn get_challenge(&self, _chain_task_id: &str) -> Result<String, ReplicateStatusCause> {
+        fn get_challenge_for_stage(&self, _stage: ComputeStage, _chain_task_id: &str) -> Result<String, ReplicateStatusCause> {
             if self.get_challenge_success {
                 Ok("mock_challenge".to_string())
             } else {

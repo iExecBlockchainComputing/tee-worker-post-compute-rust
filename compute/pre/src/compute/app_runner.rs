@@ -1,7 +1,7 @@
 use crate::compute::pre_compute_app::{PreComputeApp, PreComputeAppTrait};
 use shared::{
-    errors::ReplicateStatusCause,
-    signer::pre_signer::get_challenge,
+    errors::{ReplicateStatusCause, ComputeStage},
+    signer::get_challenge_for_stage,
     utils::env_utils::{TeeSessionEnvironmentVariable::IexecTaskId, get_env_var_or_error},
     worker_api::{ExitMessage, WorkerApiClient},
 };
@@ -59,7 +59,7 @@ pub fn start_with_app<A: PreComputeAppTrait>(pre_compute_app: &mut A) -> ExitMod
         }
     }
 
-    let authorization = match get_challenge(&chain_task_id) {
+    let authorization = match get_challenge_for_stage(ComputeStage::PreCompute, &chain_task_id) {
         Ok(auth) => auth,
         Err(_) => {
             error!("Failed to sign exitCause message [{exit_cause:?}]");

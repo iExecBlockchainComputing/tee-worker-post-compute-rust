@@ -1,5 +1,5 @@
 use super::{
-    errors::ReplicateStatusCause,
+    errors::{ReplicateStatusCause, ComputeStage, BaseErrorType},
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
 };
 use log::error;
@@ -93,6 +93,68 @@ impl WorkerApiClient {
         Self::new(&base_url)
     }
 
+    /// This generic method eliminates duplication between pre and post compute exit cause reporting.
+    /// It automatically handles stage-specific URL paths and fallback errors.
+    ///
+    /// # Arguments
+    ///
+    /// * `stage` - The compute stage (PreCompute or PostCompute) for appropriate URL and error handling
+    /// * `authorization` - The authorization token to use for the API request
+    /// * `chain_task_id` - The chain task ID for which to report the exit cause
+    /// * `exit_cause` - The exit cause to report
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the exit cause was successfully reported
+    /// * `Err(ReplicateStatusCause)` - If the exit cause could not be reported, with stage-appropriate error
+    ///
+    /// # Errors
+    ///
+    /// This function will return stage-appropriate errors:
+    /// * HTTP request failures → stage-specific unknown failure error
+    /// * Non-success HTTP responses → stage-specific unknown failure error
+    pub fn send_exit_cause_for_compute_stage(
+        &self,
+        stage: ComputeStage,
+        authorization: &str,
+        chain_task_id: &str,
+        exit_cause: &ExitMessage,
+    ) -> Result<(), ReplicateStatusCause> {
+        // Build stage-specific URL path
+        let stage_path = match stage {
+            ComputeStage::PreCompute => "pre",
+            ComputeStage::PostCompute => "post",
+        };
+        let url = format!("{}/compute/{stage_path}/{chain_task_id}/exit", self.base_url);
+
+        let fallback_error = ReplicateStatusCause::map_error(stage, BaseErrorType::FailedUnknownIssue);
+
+        match self
+            .client
+            .post(&url)
+            .header(AUTHORIZATION, authorization)
+            .json(exit_cause)
+            .send()
+        {
+            Ok(response) => {
+                if response.status().is_success() {
+                    Ok(())
+                } else {
+                    let status = response.status();
+                    let body = response.text().unwrap_or_default();
+                    error!(
+                        "Failed to send exit cause to worker: [status:{status:?}, body:{body:#?}]"
+                    );
+                    Err(fallback_error)
+                }
+            }
+            Err(e) => {
+                error!("HTTP request failed when sending exit cause to {url}: {e:?}");
+                Err(fallback_error)
+            }
+        }
+    }
+
     /// Sends an exit cause for a pre-compute operation to the Worker API.
     ///
     /// This method reports the exit cause of a pre-compute operation to the Worker API,
@@ -138,29 +200,12 @@ impl WorkerApiClient {
         chain_task_id: &str,
         exit_cause: &ExitMessage,
     ) -> Result<(), ReplicateStatusCause> {
-        let url = format!("{}/compute/pre/{chain_task_id}/exit", self.base_url);
-        match self
-            .client
-            .post(&url)
-            .header(AUTHORIZATION, authorization)
-            .json(exit_cause)
-            .send()
-        {
-            Ok(resp) => {
-                let status = resp.status();
-                if status.is_success() {
-                    Ok(())
-                } else {
-                    let body = resp.text().unwrap_or_default();
-                    error!("Failed to send exit cause: [status:{status}, body:{body}]");
-                    Err(ReplicateStatusCause::PreComputeFailedUnknownIssue)
-                }
-            }
-            Err(err) => {
-                error!("HTTP request failed when sending exit cause to {url}: {err:?}");
-                Err(ReplicateStatusCause::PreComputeFailedUnknownIssue)
-            }
-        }
+        self.send_exit_cause_for_compute_stage(
+            ComputeStage::PreCompute,
+            authorization,
+            chain_task_id,
+            exit_cause,
+        )
     }
 
     /// Sends an exit cause for a post-compute operation to the Worker API.
@@ -208,31 +253,12 @@ impl WorkerApiClient {
         chain_task_id: &str,
         exit_cause: &ExitMessage,
     ) -> Result<(), ReplicateStatusCause> {
-        let url = format!("{}/compute/post/{chain_task_id}/exit", self.base_url);
-        match self
-            .client
-            .post(&url)
-            .header(AUTHORIZATION, authorization)
-            .json(exit_cause)
-            .send()
-        {
-            Ok(response) => {
-                if response.status().is_success() {
-                    Ok(())
-                } else {
-                    let status = response.status();
-                    let body = response.text().unwrap_or_default();
-                    error!(
-                        "Failed to send exit cause to worker: [status:{status:?}, body:{body:#?}]"
-                    );
-                    Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
-                }
-            }
-            Err(e) => {
-                error!("An error occured while sending exit cause to worker: {e}");
-                Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
-            }
-        }
+        self.send_exit_cause_for_compute_stage(
+            ComputeStage::PostCompute,
+            authorization,
+            chain_task_id,
+            exit_cause,
+        )
     }
 }
 
@@ -364,7 +390,7 @@ mod tests {
                 assert_eq!(logs.len(), 1);
                 assert_eq!(
                     logs[0].body,
-                    "Failed to send exit cause: [status:503 Service Unavailable, body:Service Unavailable]"
+                    "Failed to send exit cause to worker: [status:503, body:\"Service Unavailable\"]"
                 );
             });
             response
@@ -486,6 +512,144 @@ mod tests {
             result,
             Err(ReplicateStatusCause::PostComputeFailedUnknownIssue)
         );
+    }
+
+    // region Unified API Tests
+    #[tokio::test]
+    async fn test_unified_send_exit_cause_pre_compute() {
+        let mock_server = MockServer::start().await;
+        let server_url = mock_server.uri();
+
+        let expected_body = json!({
+            "cause": ReplicateStatusCause::PreComputeInvalidTeeSignature,
+        });
+
+        Mock::given(method("POST"))
+            .and(path(format!("/compute/pre/{CHAIN_TASK_ID}/exit")))
+            .and(header("Authorization", CHALLENGE))
+            .and(body_json(&expected_body))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(2)
+            .mount(&mock_server)
+            .await;
+
+        let _result = tokio::task::spawn_blocking(move || {
+            let exit_message =
+                ExitMessage::from(&ReplicateStatusCause::PreComputeInvalidTeeSignature);
+            let worker_api_client = WorkerApiClient::new(&server_url);
+
+            // Test both the unified method and the backward compatibility wrapper
+            let unified_result = worker_api_client.send_exit_cause_for_compute_stage(
+                ComputeStage::PreCompute,
+                CHALLENGE,
+                CHAIN_TASK_ID,
+                &exit_message,
+            );
+
+            let wrapper_result = worker_api_client.send_exit_cause_for_pre_compute_stage(
+                CHALLENGE,
+                CHAIN_TASK_ID,
+                &exit_message,
+            );
+
+            // Both should succeed and be equivalent
+            assert!(unified_result.is_ok(), "Unified method should succeed");
+            assert!(wrapper_result.is_ok(), "Wrapper method should succeed");
+        })
+        .await
+        .expect("Task panicked");
+    }
+
+    #[tokio::test]
+    async fn test_unified_send_exit_cause_post_compute() {
+        let mock_server = MockServer::start().await;
+        let server_url = mock_server.uri();
+
+        let expected_body = json!({
+            "cause": ReplicateStatusCause::PostComputeInvalidTeeSignature,
+        });
+
+        Mock::given(method("POST"))
+            .and(path(format!("/compute/post/{CHAIN_TASK_ID}/exit")))
+            .and(header("Authorization", CHALLENGE))
+            .and(body_json(&expected_body))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(2)
+            .mount(&mock_server)
+            .await;
+
+        let _result = tokio::task::spawn_blocking(move || {
+            let exit_message =
+                ExitMessage::from(&ReplicateStatusCause::PostComputeInvalidTeeSignature);
+            let worker_api_client = WorkerApiClient::new(&server_url);
+
+            // Test both methods
+            let unified_result = worker_api_client.send_exit_cause_for_compute_stage(
+                ComputeStage::PostCompute,
+                CHALLENGE,
+                CHAIN_TASK_ID,
+                &exit_message,
+            );
+
+            let wrapper_result = worker_api_client.send_exit_cause_for_post_compute_stage(
+                CHALLENGE,
+                CHAIN_TASK_ID,
+                &exit_message,
+            );
+
+            assert!(unified_result.is_ok(), "Unified method should succeed");
+            assert!(wrapper_result.is_ok(), "Wrapper method should succeed");
+        })
+        .await
+        .expect("Task panicked");
+    }
+
+    #[test]
+    fn test_unified_error_stage_mapping() {
+        let client = WorkerApiClient::new("http://invalid-url");
+        let exit_message = ExitMessage::from(&ReplicateStatusCause::PreComputeFailedUnknownIssue);
+
+        // Test that errors are mapped appropriately for each stage
+        let pre_result = client.send_exit_cause_for_compute_stage(
+            ComputeStage::PreCompute,
+            "auth",
+            "task-id",
+            &exit_message,
+        );
+
+        let post_result = client.send_exit_cause_for_compute_stage(
+            ComputeStage::PostCompute,
+            "auth",
+            "task-id",
+            &exit_message,
+        );
+
+        // Both should fail with appropriate stage-specific errors
+        assert_eq!(pre_result.unwrap_err(), ReplicateStatusCause::PreComputeFailedUnknownIssue);
+        assert_eq!(post_result.unwrap_err(), ReplicateStatusCause::PostComputeFailedUnknownIssue);
+    }
+
+    #[test]
+    fn test_unified_backward_compatibility() {
+        // Ensure wrapper methods behave exactly like the unified implementation
+        let client = WorkerApiClient::new("http://invalid-url");
+        let exit_message = ExitMessage::from(&ReplicateStatusCause::PreComputeFailedUnknownIssue);
+
+        let unified_result = client.send_exit_cause_for_compute_stage(
+            ComputeStage::PreCompute,
+            "auth",
+            "task-id",
+            &exit_message,
+        );
+
+        let wrapper_result = client.send_exit_cause_for_pre_compute_stage(
+            "auth",
+            "task-id",
+            &exit_message,
+        );
+
+        // Both should produce the same error
+        assert_eq!(unified_result.unwrap_err(), wrapper_result.unwrap_err());
     }
     // endregion
 }
