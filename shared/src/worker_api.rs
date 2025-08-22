@@ -1,4 +1,4 @@
-use crate::compute::{
+use super::{
     errors::ReplicateStatusCause,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
 };
@@ -167,7 +167,7 @@ impl WorkerApiClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tee_worker_pre_compute::compute::utils::env_utils::TeeSessionEnvironmentVariable::WorkerHostEnvVar;
+    use crate::utils::env_utils::TeeSessionEnvironmentVariable::WorkerHostEnvVar;
     use serde_json::{json, to_string};
     use temp_env::with_vars;
     use wiremock::{

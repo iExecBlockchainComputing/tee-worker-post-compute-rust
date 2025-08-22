@@ -3,10 +3,12 @@ use crate::compute::{
     computed_file::{
         ComputedFile, build_result_digest_in_computed_file, read_computed_file, sign_computed_file,
     },
-    errors::ReplicateStatusCause,
-    signer::get_challenge,
-    utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
     web2_result::{Web2ResultInterface, Web2ResultService},
+};
+use shared::{
+    errors::ReplicateStatusCause,
+    signer::post_signer::get_challenge,
+    utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
 };
 use log::{error, info};
 
@@ -247,10 +249,6 @@ pub fn start() -> ExitMode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tee_worker_post_compute::compute::{
-        computed_file::ComputedFile, errors::ReplicateStatusCause,
-        utils::env_utils::TeeSessionEnvironmentVariable,
-    };
     use temp_env::with_vars;
     use wiremock::{
         Mock, MockServer, ResponseTemplate,

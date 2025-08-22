@@ -1,9 +1,9 @@
-use crate::api::worker_api::{ExitMessage, WorkerApiClient};
 use crate::compute::pre_compute_app::{PreComputeApp, PreComputeAppTrait};
-use crate::compute::{
+use shared::{
     errors::ReplicateStatusCause,
-    signer::get_challenge,
+    signer::pre_signer::get_challenge,
     utils::env_utils::{TeeSessionEnvironmentVariable::IexecTaskId, get_env_var_or_error},
+    worker_api::{ExitMessage, WorkerApiClient},
 };
 use log::{error, info};
 
@@ -111,7 +111,7 @@ pub fn start() -> ExitMode {
 #[cfg(test)]
 mod pre_compute_start_with_app_tests {
     use super::*;
-    use tee_worker_pre_compute::compute::pre_compute_app::MockPreComputeAppTrait;
+    use crate::compute::pre_compute_app::MockPreComputeAppTrait;
     use serde_json::json;
     use temp_env;
     use wiremock::matchers::{body_json, method, path};

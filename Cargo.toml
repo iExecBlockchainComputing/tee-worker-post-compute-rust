@@ -2,5 +2,27 @@
 resolver = "3"
 members = [
     "compute/post",
-    "compute/pre"
+    "compute/pre",
+    "shared",
 ]
+
+[workspace.dependencies]
+alloy-signer = "0.15.9"
+alloy-signer-local = "0.15.9"
+log = "0.4.27"
+reqwest = { version = "0.12.15", features = ["blocking", "json"] }
+serde = "1.0.219"
+sha256 = "1.6.0"
+sha3 = "0.10.8"
+thiserror = "2.0.12"
+
+serde_json = "1.0.140"
+temp-env = "0.3.6"
+tempfile = "3.20.0"
+testcontainers = { version = "0.25.0", features = ["blocking"] }
+testing_logger = "0.1.1"
+tokio = "1.45.0"
+wiremock = "0.6.3"
+
+shared = { path = "shared" }
+

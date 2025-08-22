@@ -1,10 +1,13 @@
-use crate::compute::{
+use crate::compute::result_utils::{
+    compute_web2_result_digest,
+    compute_web3_result_digest,
+};
+use shared::{
     errors::ReplicateStatusCause,
-    signer::sign_enclave_challenge,
+    signer::post_signer::sign_enclave_challenge,
     utils::{
         env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
         hash_utils::concatenate_and_hash,
-        result_utils::{compute_web2_result_digest, compute_web3_result_digest},
     },
 };
 use log::{error, info};

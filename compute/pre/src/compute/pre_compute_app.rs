@@ -1,7 +1,13 @@
-use crate::compute::errors::ReplicateStatusCause;
-use crate::compute::pre_compute_args::PreComputeArgs;
-use crate::compute::utils::file_utils::{download_file, download_from_url, write_file};
-use crate::compute::utils::hash_utils::{sha256, sha256_from_bytes};
+use crate::compute::{
+    file_utils::{
+        download_file, download_from_url, write_file
+    },
+    pre_compute_args::PreComputeArgs,
+};
+use shared::{
+    errors::ReplicateStatusCause,
+    utils::hash_utils::{sha256, sha256_from_bytes},
+};
 use aes::Aes256;
 use base64::{Engine as _, engine::general_purpose};
 use cbc::{
@@ -278,7 +284,7 @@ fn is_multi_address(uri: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tee_worker_pre_compute::compute::pre_compute_args::PreComputeArgs;
+    use crate::compute::pre_compute_args::PreComputeArgs;
     use std::fs;
     use tempfile::TempDir;
     use testcontainers::core::WaitFor;

@@ -3,6 +3,8 @@ use super::{
     computed_file::ComputedFile,
     dropbox::{DROPBOX_CONTENT_BASE_URL, DropboxService, DropboxUploader},
     encryption::encrypt_data,
+};
+use shared::{
     errors::ReplicateStatusCause,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var, get_env_var_or_error},
 };
@@ -654,7 +656,7 @@ impl Web2ResultInterface for Web2ResultService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tee_worker_post_compute::compute::dropbox::MockDropboxUploader;
+    use crate::compute::dropbox::MockDropboxUploader;
     use mockall::predicate::{eq, function};
     use std::os::unix::fs::symlink;
     use temp_env::{self, with_vars};

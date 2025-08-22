@@ -5,7 +5,7 @@
 //! correctness, explicit error mapping to `ReplicateStatusCause`, and testability
 //! (the base URL is injectable for mocking).
 
-use crate::compute::errors::ReplicateStatusCause;
+use shared::errors::ReplicateStatusCause;
 use log::{error, info};
 #[cfg(test)]
 use mockall::automock;

@@ -1,6 +1,6 @@
-use crate::compute::utils::hash_utils::{concatenate_and_hash, sha256};
-use crate::compute::{computed_file::ComputedFile, utils::hash_utils::keccak256};
+use crate::compute::computed_file::ComputedFile;
 use log::error;
+use shared::utils::hash_utils::{concatenate_and_hash, keccak256, sha256};
 use std::{
     fs::{self, DirEntry},
     io::Error,

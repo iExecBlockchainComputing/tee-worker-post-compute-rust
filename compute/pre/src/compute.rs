@@ -1,6 +1,4 @@
 pub mod app_runner;
-pub mod errors;
-mod pre_compute_app;
-mod pre_compute_args;
-pub mod signer;
-pub mod utils;
+pub mod file_utils;
+pub mod pre_compute_app;
+pub mod pre_compute_args;

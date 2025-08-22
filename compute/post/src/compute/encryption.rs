@@ -1,4 +1,3 @@
-use crate::compute::errors::ReplicateStatusCause;
 use crate::compute::web2_result::{Web2ResultInterface, Web2ResultService};
 use aes::{
     Aes256,
@@ -8,6 +7,7 @@ use cbc::Encryptor;
 use log::error;
 use rand::{RngCore, rngs::OsRng};
 use rsa::{Pkcs1v15Encrypt, RsaPublicKey, pkcs8::DecodePublicKey};
+use shared::errors::ReplicateStatusCause;
 use sha3::{Digest, Sha3_256};
 use std::{fs, path::Path};
 

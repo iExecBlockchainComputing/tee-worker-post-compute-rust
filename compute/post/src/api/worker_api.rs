@@ -1,5 +1,5 @@
-use crate::compute::{
-    computed_file::ComputedFile,
+use crate::compute::computed_file::ComputedFile;
+use shared::{
     errors::ReplicateStatusCause,
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
 };
@@ -243,7 +243,7 @@ impl WorkerApiClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tee_worker_post_compute::compute::utils::env_utils::TeeSessionEnvironmentVariable::*;
+    use shared::utils::env_utils::TeeSessionEnvironmentVariable::WorkerHostEnvVar;
     use logtest::Logger;
     use once_cell::sync::Lazy;
     use serde_json::{json, to_string};

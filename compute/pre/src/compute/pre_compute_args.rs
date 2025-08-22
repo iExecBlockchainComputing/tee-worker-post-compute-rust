@@ -1,5 +1,7 @@
-use crate::compute::errors::ReplicateStatusCause;
-use crate::compute::utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error};
+use shared::{
+    errors::ReplicateStatusCause,
+    utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
+};
 
 /// Represents parameters required for pre-compute tasks in a Trusted Execution Environment (TEE).
 ///
@@ -117,8 +119,7 @@ impl PreComputeArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tee_worker_pre_compute::compute::errors::ReplicateStatusCause;
-    use tee_worker_pre_compute::compute::utils::env_utils::TeeSessionEnvironmentVariable::*;
+    use shared::utils::env_utils::TeeSessionEnvironmentVariable::*;
     use std::collections::HashMap;
 
     const OUTPUT_DIR: &str = "/iexec_out";

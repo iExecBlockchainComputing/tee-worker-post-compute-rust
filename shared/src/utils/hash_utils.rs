@@ -41,6 +41,10 @@ pub fn sha256<D: Sha256Digest>(input: D) -> String {
     format!("0x{}", digest(input))
 }
 
+pub fn sha256_from_bytes(bytes: &[u8]) -> String {
+    format!("0x{}", digest(bytes))
+}
+
 pub fn keccak256(input: &str) -> String {
     format!("0x{:x}", Keccak256::digest(input))
 }

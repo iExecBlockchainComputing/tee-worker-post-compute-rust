@@ -1,21 +1,12 @@
 [package]
-name = "tee-worker-pre-compute"
+name = "shared"
 version = "0.1.0"
 edition = "2024"
 
-[[bin]]
-name = "tee-worker-pre-compute"
-path = "src/bin/main.rs"
-
 [dependencies]
-shared = { workspace = true }
-
-aes = "0.8.4"
-base64 = "0.22.1"
-cbc = { version = "0.1.2", features = ["alloc"] }
-env_logger = "0.11.8"
+alloy-signer = { workspace = true }
+alloy-signer-local = { workspace = true }
 log = { workspace = true }
-multiaddr = "0.18.2"
 reqwest = { workspace = true }
 serde = { workspace = true }
 sha256 = { workspace = true }
@@ -23,10 +14,10 @@ sha3 = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-mockall = "0.13.1"
 serde_json = { workspace = true }
 temp-env = { workspace = true }
 tempfile = { workspace = true }
 testcontainers = { workspace = true }
+testing_logger = { workspace = true }
 tokio = { workspace = true }
 wiremock = { workspace = true }
