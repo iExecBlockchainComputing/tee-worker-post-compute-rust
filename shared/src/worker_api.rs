@@ -537,7 +537,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let _result = tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || {
             let exit_message =
                 ExitMessage::from(&ReplicateStatusCause::PreComputeInvalidTeeSignature);
             let worker_api_client = WorkerApiClient::new(&server_url);
@@ -582,7 +582,7 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let _result = tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || {
             let exit_message =
                 ExitMessage::from(&ReplicateStatusCause::PostComputeInvalidTeeSignature);
             let worker_api_client = WorkerApiClient::new(&server_url);

@@ -1,5 +1,6 @@
 use log::{error, info};
 use reqwest::blocking::get;
+use shared::errors::ReplicateStatusCause;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -31,7 +32,11 @@ use std::path::{Path, PathBuf};
 ///     println!("File written successfully");
 /// }
 /// ```
-pub fn write_file(content: &[u8], file_path: &Path, context: &str) -> Result<(), ()> {
+pub fn write_file(
+    content: &[u8],
+    file_path: &Path,
+    context: &str,
+) -> Result<(), ReplicateStatusCause> {
     match fs::write(file_path, content) {
         Ok(_) => {
             info!(
@@ -45,7 +50,7 @@ pub fn write_file(content: &[u8], file_path: &Path, context: &str) -> Result<(),
                 "Failed to write file [{context}, path:{}]",
                 file_path.display()
             );
-            Err(())
+            Err(ReplicateStatusCause::PreComputeFailedUnknownIssue)
         }
     }
 }
