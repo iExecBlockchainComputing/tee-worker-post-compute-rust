@@ -1,17 +1,17 @@
-use crate::api::result_proxy_api_client::{ResultModel, ResultProxyApiClient};
 use super::{
     computed_file::ComputedFile,
     dropbox::{DROPBOX_CONTENT_BASE_URL, DropboxService, DropboxUploader},
     encryption::encrypt_data,
 };
-use shared::{
-    errors::ReplicateStatusCause,
-    utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var, get_env_var_or_error},
-};
+use crate::api::result_proxy_api_client::{ResultModel, ResultProxyApiClient};
 use base64::{Engine as _, engine::general_purpose};
 use log::{debug, error, info};
 #[cfg(test)]
 use mockall::automock;
+use shared::{
+    errors::ReplicateStatusCause,
+    utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var, get_env_var_or_error},
+};
 use std::{
     fs::{self, File},
     io::{self, Write},

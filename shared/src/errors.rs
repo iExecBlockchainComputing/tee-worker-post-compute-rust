@@ -105,17 +105,37 @@ impl ReplicateStatusCause {
     /// Creates a shared error for the specified stage
     pub fn map_error(stage: ComputeStage, error_type: BaseErrorType) -> Self {
         match (stage, error_type) {
-            (ComputeStage::PreCompute, BaseErrorType::FailedUnknownIssue) => Self::PreComputeFailedUnknownIssue,
-            (ComputeStage::PreCompute, BaseErrorType::InvalidTeeSignature) => Self::PreComputeInvalidTeeSignature,
-            (ComputeStage::PreCompute, BaseErrorType::TaskIdMissing) => Self::PreComputeTaskIdMissing,
-            (ComputeStage::PreCompute, BaseErrorType::TeeChallengePrivateKeyMissing) => Self::PreComputeTeeChallengePrivateKeyMissing,
-            (ComputeStage::PreCompute, BaseErrorType::WorkerAddressMissing) => Self::PreComputeWorkerAddressMissing,
+            (ComputeStage::PreCompute, BaseErrorType::FailedUnknownIssue) => {
+                Self::PreComputeFailedUnknownIssue
+            }
+            (ComputeStage::PreCompute, BaseErrorType::InvalidTeeSignature) => {
+                Self::PreComputeInvalidTeeSignature
+            }
+            (ComputeStage::PreCompute, BaseErrorType::TaskIdMissing) => {
+                Self::PreComputeTaskIdMissing
+            }
+            (ComputeStage::PreCompute, BaseErrorType::TeeChallengePrivateKeyMissing) => {
+                Self::PreComputeTeeChallengePrivateKeyMissing
+            }
+            (ComputeStage::PreCompute, BaseErrorType::WorkerAddressMissing) => {
+                Self::PreComputeWorkerAddressMissing
+            }
 
-            (ComputeStage::PostCompute, BaseErrorType::FailedUnknownIssue) => Self::PostComputeFailedUnknownIssue,
-            (ComputeStage::PostCompute, BaseErrorType::InvalidTeeSignature) => Self::PostComputeInvalidTeeSignature,
-            (ComputeStage::PostCompute, BaseErrorType::TaskIdMissing) => Self::PostComputeTaskIdMissing,
-            (ComputeStage::PostCompute, BaseErrorType::TeeChallengePrivateKeyMissing) => Self::PostComputeTeeChallengePrivateKeyMissing,
-            (ComputeStage::PostCompute, BaseErrorType::WorkerAddressMissing) => Self::PostComputeWorkerAddressMissing,
+            (ComputeStage::PostCompute, BaseErrorType::FailedUnknownIssue) => {
+                Self::PostComputeFailedUnknownIssue
+            }
+            (ComputeStage::PostCompute, BaseErrorType::InvalidTeeSignature) => {
+                Self::PostComputeInvalidTeeSignature
+            }
+            (ComputeStage::PostCompute, BaseErrorType::TaskIdMissing) => {
+                Self::PostComputeTaskIdMissing
+            }
+            (ComputeStage::PostCompute, BaseErrorType::TeeChallengePrivateKeyMissing) => {
+                Self::PostComputeTeeChallengePrivateKeyMissing
+            }
+            (ComputeStage::PostCompute, BaseErrorType::WorkerAddressMissing) => {
+                Self::PostComputeWorkerAddressMissing
+            }
         }
     }
 }
@@ -129,7 +149,7 @@ mod tests {
     fn map_error_creates_correct_variant_when_stage_and_type_provided() {
         let error1 = ReplicateStatusCause::map_error(
             ComputeStage::PreCompute,
-            BaseErrorType::WorkerAddressMissing
+            BaseErrorType::WorkerAddressMissing,
         );
         let error2 = ReplicateStatusCause::PreComputeWorkerAddressMissing;
         assert_eq!(error1, error2);

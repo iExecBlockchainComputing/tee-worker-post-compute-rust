@@ -1,5 +1,5 @@
 use crate::{
-    errors::{ReplicateStatusCause, ComputeStage, BaseErrorType},
+    errors::{BaseErrorType, ComputeStage, ReplicateStatusCause},
     utils::{
         env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
         hash_utils::{concatenate_and_hash, hex_string_to_byte_array},
@@ -38,7 +38,9 @@ pub fn sign_enclave_challenge_for_stage(
             // Use the appropriate error for the stage - note the special case for PostCompute
             match stage {
                 ComputeStage::PreCompute => ReplicateStatusCause::PreComputeWorkerAddressMissing,
-                ComputeStage::PostCompute => ReplicateStatusCause::PostComputeInvalidEnclaveChallengePrivateKey,
+                ComputeStage::PostCompute => {
+                    ReplicateStatusCause::PostComputeInvalidEnclaveChallengePrivateKey
+                }
             }
         })?;
 
@@ -86,15 +88,13 @@ pub fn get_challenge_for_stage(
     sign_enclave_challenge_for_stage(stage, &message_hash, &tee_challenge_private_key)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use temp_env::with_vars;
     use crate::utils::{
-        env_utils::TeeSessionEnvironmentVariable,
-        hash_utils::concatenate_and_hash,
+        env_utils::TeeSessionEnvironmentVariable, hash_utils::concatenate_and_hash,
     };
+    use temp_env::with_vars;
 
     const CHAIN_TASK_ID: &str = "0x123456789abcdef";
     const WORKER_ADDRESS: &str = "0xabcdef123456789";
@@ -106,35 +106,55 @@ mod tests {
     // ========== UNIFIED SIGNATURE TESTS ==========
 
     #[test]
-    fn sign_enclave_challenge_for_stage_returns_correct_signature_when_pre_compute_stage_and_valid_inputs_provided() {
+    fn sign_enclave_challenge_for_stage_returns_correct_signature_when_pre_compute_stage_and_valid_inputs_provided()
+     {
         let result = sign_enclave_challenge_for_stage(
             ComputeStage::PreCompute,
             MESSAGE_HASH,
             ENCLAVE_CHALLENGE_PRIVATE_KEY,
         );
-        assert!(result.is_ok(), "Pre-compute signing should succeed with valid inputs");
-        assert_eq!(result.unwrap(), EXPECTED_SIGNATURE, "Pre-compute signature should match expected value");
+        assert!(
+            result.is_ok(),
+            "Pre-compute signing should succeed with valid inputs"
+        );
+        assert_eq!(
+            result.unwrap(),
+            EXPECTED_SIGNATURE,
+            "Pre-compute signature should match expected value"
+        );
     }
 
     #[test]
-    fn sign_enclave_challenge_for_stage_returns_correct_signature_when_post_compute_stage_and_valid_inputs_provided() {
+    fn sign_enclave_challenge_for_stage_returns_correct_signature_when_post_compute_stage_and_valid_inputs_provided()
+     {
         let result = sign_enclave_challenge_for_stage(
             ComputeStage::PostCompute,
             MESSAGE_HASH,
             ENCLAVE_CHALLENGE_PRIVATE_KEY,
         );
-        assert!(result.is_ok(), "Post-compute signing should succeed with valid inputs");
-        assert_eq!(result.unwrap(), EXPECTED_SIGNATURE, "Post-compute signature should match expected value");
+        assert!(
+            result.is_ok(),
+            "Post-compute signing should succeed with valid inputs"
+        );
+        assert_eq!(
+            result.unwrap(),
+            EXPECTED_SIGNATURE,
+            "Post-compute signature should match expected value"
+        );
     }
 
     #[test]
-    fn sign_enclave_challenge_for_stage_returns_error_when_pre_compute_stage_and_invalid_key_provided() {
+    fn sign_enclave_challenge_for_stage_returns_error_when_pre_compute_stage_and_invalid_key_provided()
+     {
         let result = sign_enclave_challenge_for_stage(
             ComputeStage::PreCompute,
             MESSAGE_HASH,
             "invalid_private_key",
         );
-        assert!(result.is_err(), "Pre-compute signing should fail with invalid key");
+        assert!(
+            result.is_err(),
+            "Pre-compute signing should fail with invalid key"
+        );
         assert_eq!(
             result.unwrap_err(),
             ReplicateStatusCause::PreComputeWorkerAddressMissing,
@@ -143,13 +163,17 @@ mod tests {
     }
 
     #[test]
-    fn sign_enclave_challenge_for_stage_returns_error_when_post_compute_stage_and_invalid_key_provided() {
+    fn sign_enclave_challenge_for_stage_returns_error_when_post_compute_stage_and_invalid_key_provided()
+     {
         let result = sign_enclave_challenge_for_stage(
             ComputeStage::PostCompute,
             MESSAGE_HASH,
             "invalid_private_key",
         );
-        assert!(result.is_err(), "Post-compute signing should fail with invalid key");
+        assert!(
+            result.is_err(),
+            "Post-compute signing should fail with invalid key"
+        );
         assert_eq!(
             result.unwrap_err(),
             ReplicateStatusCause::PostComputeInvalidEnclaveChallengePrivateKey,
@@ -160,15 +184,22 @@ mod tests {
     // ========== UNIFIED CHALLENGE TESTS ==========
 
     #[test]
-    fn get_challenge_for_stage_returns_correct_signature_when_pre_compute_stage_and_valid_env_vars_provided() {
+    fn get_challenge_for_stage_returns_correct_signature_when_pre_compute_stage_and_valid_env_vars_provided()
+     {
         with_vars(
             vec![
                 ("SIGN_WORKER_ADDRESS", Some(WORKER_ADDRESS)),
-                ("SIGN_TEE_CHALLENGE_PRIVATE_KEY", Some(ENCLAVE_CHALLENGE_PRIVATE_KEY)),
+                (
+                    "SIGN_TEE_CHALLENGE_PRIVATE_KEY",
+                    Some(ENCLAVE_CHALLENGE_PRIVATE_KEY),
+                ),
             ],
             || {
                 let result = get_challenge_for_stage(ComputeStage::PreCompute, CHAIN_TASK_ID);
-                assert!(result.is_ok(), "Pre-compute challenge should succeed with valid env vars");
+                assert!(
+                    result.is_ok(),
+                    "Pre-compute challenge should succeed with valid env vars"
+                );
 
                 // Verify it matches direct computation
                 let expected_message_hash = concatenate_and_hash(&[CHAIN_TASK_ID, WORKER_ADDRESS]);
@@ -176,22 +207,37 @@ mod tests {
                     ComputeStage::PreCompute,
                     &expected_message_hash,
                     ENCLAVE_CHALLENGE_PRIVATE_KEY,
-                ).unwrap();
-                assert_eq!(result.unwrap(), expected_signature, "Pre-compute challenge should match expected");
+                )
+                .unwrap();
+                assert_eq!(
+                    result.unwrap(),
+                    expected_signature,
+                    "Pre-compute challenge should match expected"
+                );
             },
         );
     }
 
     #[test]
-    fn get_challenge_for_stage_returns_correct_signature_when_post_compute_stage_and_valid_env_vars_provided() {
+    fn get_challenge_for_stage_returns_correct_signature_when_post_compute_stage_and_valid_env_vars_provided()
+     {
         with_vars(
             vec![
-                (TeeSessionEnvironmentVariable::SignWorkerAddress.name(), Some(WORKER_ADDRESS)),
-                (TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey.name(), Some(ENCLAVE_CHALLENGE_PRIVATE_KEY)),
+                (
+                    TeeSessionEnvironmentVariable::SignWorkerAddress.name(),
+                    Some(WORKER_ADDRESS),
+                ),
+                (
+                    TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey.name(),
+                    Some(ENCLAVE_CHALLENGE_PRIVATE_KEY),
+                ),
             ],
             || {
                 let result = get_challenge_for_stage(ComputeStage::PostCompute, CHAIN_TASK_ID);
-                assert!(result.is_ok(), "Post-compute challenge should succeed with valid env vars");
+                assert!(
+                    result.is_ok(),
+                    "Post-compute challenge should succeed with valid env vars"
+                );
 
                 // Verify it matches direct computation
                 let expected_message_hash = concatenate_and_hash(&[CHAIN_TASK_ID, WORKER_ADDRESS]);
@@ -199,19 +245,31 @@ mod tests {
                     ComputeStage::PostCompute,
                     &expected_message_hash,
                     ENCLAVE_CHALLENGE_PRIVATE_KEY,
-                ).unwrap();
-                assert_eq!(result.unwrap(), expected_signature, "Post-compute challenge should match expected");
+                )
+                .unwrap();
+                assert_eq!(
+                    result.unwrap(),
+                    expected_signature,
+                    "Post-compute challenge should match expected"
+                );
             },
         );
     }
 
     #[test]
-    fn get_challenge_for_stage_returns_worker_address_missing_error_when_pre_compute_stage_and_worker_address_env_var_missing() {
+    fn get_challenge_for_stage_returns_worker_address_missing_error_when_pre_compute_stage_and_worker_address_env_var_missing()
+     {
         with_vars(
-            vec![("SIGN_TEE_CHALLENGE_PRIVATE_KEY", Some(ENCLAVE_CHALLENGE_PRIVATE_KEY))],
+            vec![(
+                "SIGN_TEE_CHALLENGE_PRIVATE_KEY",
+                Some(ENCLAVE_CHALLENGE_PRIVATE_KEY),
+            )],
             || {
                 let result = get_challenge_for_stage(ComputeStage::PreCompute, CHAIN_TASK_ID);
-                assert!(result.is_err(), "Pre-compute challenge should fail without worker address");
+                assert!(
+                    result.is_err(),
+                    "Pre-compute challenge should fail without worker address"
+                );
                 assert_eq!(
                     result.unwrap_err(),
                     ReplicateStatusCause::PreComputeWorkerAddressMissing,
@@ -222,12 +280,19 @@ mod tests {
     }
 
     #[test]
-    fn get_challenge_for_stage_returns_worker_address_missing_error_when_post_compute_stage_and_worker_address_env_var_missing() {
+    fn get_challenge_for_stage_returns_worker_address_missing_error_when_post_compute_stage_and_worker_address_env_var_missing()
+     {
         with_vars(
-            vec![(TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey.name(), Some(ENCLAVE_CHALLENGE_PRIVATE_KEY))],
+            vec![(
+                TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey.name(),
+                Some(ENCLAVE_CHALLENGE_PRIVATE_KEY),
+            )],
             || {
                 let result = get_challenge_for_stage(ComputeStage::PostCompute, CHAIN_TASK_ID);
-                assert!(result.is_err(), "Post-compute challenge should fail without worker address");
+                assert!(
+                    result.is_err(),
+                    "Post-compute challenge should fail without worker address"
+                );
                 assert_eq!(
                     result.unwrap_err(),
                     ReplicateStatusCause::PostComputeWorkerAddressMissing,
@@ -238,28 +303,36 @@ mod tests {
     }
 
     #[test]
-    fn get_challenge_for_stage_returns_private_key_missing_error_when_pre_compute_stage_and_private_key_env_var_missing() {
-        with_vars(
-            vec![("SIGN_WORKER_ADDRESS", Some(WORKER_ADDRESS))],
-            || {
-                let result = get_challenge_for_stage(ComputeStage::PreCompute, CHAIN_TASK_ID);
-                assert!(result.is_err(), "Pre-compute challenge should fail without private key");
-                assert_eq!(
-                    result.unwrap_err(),
-                    ReplicateStatusCause::PreComputeTeeChallengePrivateKeyMissing,
-                    "Should return missing private key error"
-                );
-            },
-        );
+    fn get_challenge_for_stage_returns_private_key_missing_error_when_pre_compute_stage_and_private_key_env_var_missing()
+     {
+        with_vars(vec![("SIGN_WORKER_ADDRESS", Some(WORKER_ADDRESS))], || {
+            let result = get_challenge_for_stage(ComputeStage::PreCompute, CHAIN_TASK_ID);
+            assert!(
+                result.is_err(),
+                "Pre-compute challenge should fail without private key"
+            );
+            assert_eq!(
+                result.unwrap_err(),
+                ReplicateStatusCause::PreComputeTeeChallengePrivateKeyMissing,
+                "Should return missing private key error"
+            );
+        });
     }
 
     #[test]
-    fn get_challenge_for_stage_returns_private_key_missing_error_when_post_compute_stage_and_private_key_env_var_missing() {
+    fn get_challenge_for_stage_returns_private_key_missing_error_when_post_compute_stage_and_private_key_env_var_missing()
+     {
         with_vars(
-            vec![(TeeSessionEnvironmentVariable::SignWorkerAddress.name(), Some(WORKER_ADDRESS))],
+            vec![(
+                TeeSessionEnvironmentVariable::SignWorkerAddress.name(),
+                Some(WORKER_ADDRESS),
+            )],
             || {
                 let result = get_challenge_for_stage(ComputeStage::PostCompute, CHAIN_TASK_ID);
-                assert!(result.is_err(), "Post-compute challenge should fail without private key");
+                assert!(
+                    result.is_err(),
+                    "Post-compute challenge should fail without private key"
+                );
                 assert_eq!(
                     result.unwrap_err(),
                     ReplicateStatusCause::PostComputeTeeChallengePrivateKeyMissing,
@@ -270,10 +343,14 @@ mod tests {
     }
 
     #[test]
-    fn get_challenge_for_stage_returns_worker_address_missing_error_when_pre_compute_stage_and_both_env_vars_missing() {
+    fn get_challenge_for_stage_returns_worker_address_missing_error_when_pre_compute_stage_and_both_env_vars_missing()
+     {
         with_vars(Vec::<(&str, Option<&str>)>::new(), || {
             let result = get_challenge_for_stage(ComputeStage::PreCompute, CHAIN_TASK_ID);
-            assert!(result.is_err(), "Pre-compute challenge should fail without any env vars");
+            assert!(
+                result.is_err(),
+                "Pre-compute challenge should fail without any env vars"
+            );
             assert_eq!(
                 result.unwrap_err(),
                 ReplicateStatusCause::PreComputeWorkerAddressMissing,
@@ -283,10 +360,14 @@ mod tests {
     }
 
     #[test]
-    fn get_challenge_for_stage_returns_worker_address_missing_error_when_post_compute_stage_and_both_env_vars_missing() {
+    fn get_challenge_for_stage_returns_worker_address_missing_error_when_post_compute_stage_and_both_env_vars_missing()
+     {
         with_vars(Vec::<(&str, Option<&str>)>::new(), || {
             let result = get_challenge_for_stage(ComputeStage::PostCompute, CHAIN_TASK_ID);
-            assert!(result.is_err(), "Post-compute challenge should fail without any env vars");
+            assert!(
+                result.is_err(),
+                "Post-compute challenge should fail without any env vars"
+            );
             assert_eq!(
                 result.unwrap_err(),
                 ReplicateStatusCause::PostComputeWorkerAddressMissing,
@@ -295,48 +376,72 @@ mod tests {
         });
     }
 
-
-
     // ========== CONSISTENCY TESTS ==========
 
     #[test]
-    fn sign_enclave_challenge_for_stage_produces_identical_signatures_when_same_inputs_provided_across_different_stages() {
+    fn sign_enclave_challenge_for_stage_produces_identical_signatures_when_same_inputs_provided_across_different_stages()
+     {
         // Both stages should produce the same signature for the same input
         let pre_signature = sign_enclave_challenge_for_stage(
             ComputeStage::PreCompute,
             MESSAGE_HASH,
             ENCLAVE_CHALLENGE_PRIVATE_KEY,
-        ).unwrap();
+        )
+        .unwrap();
 
         let post_signature = sign_enclave_challenge_for_stage(
             ComputeStage::PostCompute,
             MESSAGE_HASH,
             ENCLAVE_CHALLENGE_PRIVATE_KEY,
-        ).unwrap();
+        )
+        .unwrap();
 
-        assert_eq!(pre_signature, post_signature, "Both stages should produce identical signatures for same input");
-        assert_eq!(pre_signature, EXPECTED_SIGNATURE, "Signatures should match known expected value");
+        assert_eq!(
+            pre_signature, post_signature,
+            "Both stages should produce identical signatures for same input"
+        );
+        assert_eq!(
+            pre_signature, EXPECTED_SIGNATURE,
+            "Signatures should match known expected value"
+        );
     }
 
     #[test]
-    fn get_challenge_for_stage_produces_deterministic_results_when_same_inputs_provided_multiple_times() {
+    fn get_challenge_for_stage_produces_deterministic_results_when_same_inputs_provided_multiple_times()
+     {
         // Challenge generation should be deterministic for same inputs
         with_vars(
             vec![
                 ("SIGN_WORKER_ADDRESS", Some(WORKER_ADDRESS)),
-                ("SIGN_TEE_CHALLENGE_PRIVATE_KEY", Some(ENCLAVE_CHALLENGE_PRIVATE_KEY)),
+                (
+                    "SIGN_TEE_CHALLENGE_PRIVATE_KEY",
+                    Some(ENCLAVE_CHALLENGE_PRIVATE_KEY),
+                ),
             ],
             || {
-                let challenge1 = get_challenge_for_stage(ComputeStage::PreCompute, CHAIN_TASK_ID).unwrap();
-                let challenge2 = get_challenge_for_stage(ComputeStage::PreCompute, CHAIN_TASK_ID).unwrap();
-                assert_eq!(challenge1, challenge2, "Challenge generation should be deterministic");
+                let challenge1 =
+                    get_challenge_for_stage(ComputeStage::PreCompute, CHAIN_TASK_ID).unwrap();
+                let challenge2 =
+                    get_challenge_for_stage(ComputeStage::PreCompute, CHAIN_TASK_ID).unwrap();
+                assert_eq!(
+                    challenge1, challenge2,
+                    "Challenge generation should be deterministic"
+                );
 
-                let post_challenge1 = get_challenge_for_stage(ComputeStage::PostCompute, CHAIN_TASK_ID).unwrap();
-                let post_challenge2 = get_challenge_for_stage(ComputeStage::PostCompute, CHAIN_TASK_ID).unwrap();
-                assert_eq!(post_challenge1, post_challenge2, "Post-compute challenge generation should be deterministic");
+                let post_challenge1 =
+                    get_challenge_for_stage(ComputeStage::PostCompute, CHAIN_TASK_ID).unwrap();
+                let post_challenge2 =
+                    get_challenge_for_stage(ComputeStage::PostCompute, CHAIN_TASK_ID).unwrap();
+                assert_eq!(
+                    post_challenge1, post_challenge2,
+                    "Post-compute challenge generation should be deterministic"
+                );
 
                 // Both stages should produce the same challenge for same inputs
-                assert_eq!(challenge1, post_challenge1, "Both stages should produce same challenge for same inputs");
+                assert_eq!(
+                    challenge1, post_challenge1,
+                    "Both stages should produce same challenge for same inputs"
+                );
             },
         );
     }

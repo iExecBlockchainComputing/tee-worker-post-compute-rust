@@ -1,10 +1,7 @@
 use crate::compute::computed_file::ComputedFile;
-use shared::{
-    errors::ReplicateStatusCause,
-    worker_api::WorkerApiClient,
-};
 use log::error;
 use reqwest::{blocking::Client, header::AUTHORIZATION};
+use shared::{errors::ReplicateStatusCause, worker_api::WorkerApiClient};
 
 /// Thin wrapper around a [`Client`] that knows how to reach the iExec worker API.
 ///
@@ -24,7 +21,6 @@ pub struct ResultSenderApiClient {
 }
 
 impl ResultSenderApiClient {
-
     /// Creates a new ResultSenderApiClient that shares the same configuration as a WorkerApiClient.
     ///
     /// This constructor allows reusing the base URL and HTTP client from an existing
@@ -131,8 +127,8 @@ impl ResultSenderApiClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shared::worker_api::WorkerApiClient;
     use serde_json::json;
+    use shared::worker_api::WorkerApiClient;
     use testing_logger;
     use wiremock::{
         Mock, MockServer, ResponseTemplate,
@@ -205,7 +201,8 @@ mod tests {
         let result = tokio::task::spawn_blocking(move || {
             let worker_client = WorkerApiClient::new(&server_uri);
             let client = ResultSenderApiClient::new(&worker_client);
-            let response = client.send_computed_file_to_host(CHALLENGE, CHAIN_TASK_ID, &computed_file);
+            let response =
+                client.send_computed_file_to_host(CHALLENGE, CHAIN_TASK_ID, &computed_file);
             testing_logger::validate(|captured_logs| {
                 let logs = captured_logs
                     .iter()
@@ -242,7 +239,8 @@ mod tests {
         let result = tokio::task::spawn_blocking(move || {
             let worker_client = WorkerApiClient::new(&server_uri);
             let client = ResultSenderApiClient::new(&worker_client);
-            let response = client.send_computed_file_to_host(CHALLENGE, invalid_chain_task_id, &computed_file);
+            let response =
+                client.send_computed_file_to_host(CHALLENGE, invalid_chain_task_id, &computed_file);
             testing_logger::validate(|captured_logs| {
                 let logs = captured_logs
                     .iter()

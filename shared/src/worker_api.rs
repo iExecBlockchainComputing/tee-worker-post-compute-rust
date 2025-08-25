@@ -1,5 +1,5 @@
 use super::{
-    errors::{ReplicateStatusCause, ComputeStage, BaseErrorType},
+    errors::{BaseErrorType, ComputeStage, ReplicateStatusCause},
     utils::env_utils::{TeeSessionEnvironmentVariable, get_env_var_or_error},
 };
 use log::error;
@@ -125,9 +125,13 @@ impl WorkerApiClient {
             ComputeStage::PreCompute => "pre",
             ComputeStage::PostCompute => "post",
         };
-        let url = format!("{}/compute/{stage_path}/{chain_task_id}/exit", self.base_url);
+        let url = format!(
+            "{}/compute/{stage_path}/{chain_task_id}/exit",
+            self.base_url
+        );
 
-        let fallback_error = ReplicateStatusCause::map_error(stage, BaseErrorType::FailedUnknownIssue);
+        let fallback_error =
+            ReplicateStatusCause::map_error(stage, BaseErrorType::FailedUnknownIssue);
 
         match self
             .client
@@ -625,8 +629,14 @@ mod tests {
         );
 
         // Both should fail with appropriate stage-specific errors
-        assert_eq!(pre_result.unwrap_err(), ReplicateStatusCause::PreComputeFailedUnknownIssue);
-        assert_eq!(post_result.unwrap_err(), ReplicateStatusCause::PostComputeFailedUnknownIssue);
+        assert_eq!(
+            pre_result.unwrap_err(),
+            ReplicateStatusCause::PreComputeFailedUnknownIssue
+        );
+        assert_eq!(
+            post_result.unwrap_err(),
+            ReplicateStatusCause::PostComputeFailedUnknownIssue
+        );
     }
 
     #[test]
@@ -642,11 +652,8 @@ mod tests {
             &exit_message,
         );
 
-        let wrapper_result = client.send_exit_cause_for_pre_compute_stage(
-            "auth",
-            "task-id",
-            &exit_message,
-        );
+        let wrapper_result =
+            client.send_exit_cause_for_pre_compute_stage("auth", "task-id", &exit_message);
 
         // Both should produce the same error
         assert_eq!(unified_result.unwrap_err(), wrapper_result.unwrap_err());

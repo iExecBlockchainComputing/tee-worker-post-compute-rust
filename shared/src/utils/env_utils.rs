@@ -53,8 +53,12 @@ impl TeeSessionEnvironmentVariable {
             TeeSessionEnvironmentVariable::ResultEncryptionPublicKey => {
                 "RESULT_ENCRYPTION_PUBLIC_KEY".to_string()
             }
-            TeeSessionEnvironmentVariable::ResultStorageCallback => "RESULT_STORAGE_CALLBACK".to_string(),
-            TeeSessionEnvironmentVariable::ResultStorageProvider => "RESULT_STORAGE_PROVIDER".to_string(),
+            TeeSessionEnvironmentVariable::ResultStorageCallback => {
+                "RESULT_STORAGE_CALLBACK".to_string()
+            }
+            TeeSessionEnvironmentVariable::ResultStorageProvider => {
+                "RESULT_STORAGE_PROVIDER".to_string()
+            }
             TeeSessionEnvironmentVariable::ResultStorageProxy => "RESULT_STORAGE_PROXY".to_string(),
             TeeSessionEnvironmentVariable::ResultStorageToken => "RESULT_STORAGE_TOKEN".to_string(),
             TeeSessionEnvironmentVariable::SignTeeChallengePrivateKey => {
@@ -82,4 +86,3 @@ pub fn get_env_var(env_var: TeeSessionEnvironmentVariable) -> String {
         _ => "".to_string(),
     }
 }
-

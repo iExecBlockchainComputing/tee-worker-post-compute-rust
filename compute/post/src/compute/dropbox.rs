@@ -5,12 +5,12 @@
 //! correctness, explicit error mapping to `ReplicateStatusCause`, and testability
 //! (the base URL is injectable for mocking).
 
-use shared::errors::ReplicateStatusCause;
 use log::{error, info};
 #[cfg(test)]
 use mockall::automock;
 use reqwest::blocking::Client;
 use serde::Deserialize;
+use shared::errors::ReplicateStatusCause;
 use std::{fs, path::Path};
 
 /// Default Dropbox Content API base URL used for uploads.

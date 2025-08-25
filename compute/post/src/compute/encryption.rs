@@ -7,15 +7,14 @@ use cbc::Encryptor;
 use log::error;
 use rand::{RngCore, rngs::OsRng};
 use rsa::{Pkcs1v15Encrypt, RsaPublicKey, pkcs8::DecodePublicKey};
-use shared::errors::ReplicateStatusCause;
 use sha3::{Digest, Sha3_256};
+use shared::errors::ReplicateStatusCause;
 use std::{fs, path::Path};
 
 /// 256-bit key (32 bytes)
 pub const AES_KEY_LENGTH: usize = 32;
 /// 128-bit IV (16 bytes) same as the AES block size
 pub const AES_IV_LENGTH: usize = 16;
-
 
 /// Encrypts a data file using hybrid encryption (AES-256-CBC + RSA-2048).
 ///

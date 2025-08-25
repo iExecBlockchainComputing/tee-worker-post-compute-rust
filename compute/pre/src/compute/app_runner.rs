@@ -1,11 +1,11 @@
 use crate::compute::pre_compute_app::{PreComputeApp, PreComputeAppTrait};
+use log::{error, info};
 use shared::{
-    errors::{ReplicateStatusCause, ComputeStage},
+    errors::{ComputeStage, ReplicateStatusCause},
     signer::get_challenge_for_stage,
     utils::env_utils::{TeeSessionEnvironmentVariable::IexecTaskId, get_env_var_or_error},
     worker_api::{ExitMessage, WorkerApiClient},
 };
-use log::{error, info};
 
 /// Represents the different exit modes for a process or application.
 ///

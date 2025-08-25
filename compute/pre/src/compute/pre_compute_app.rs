@@ -1,12 +1,6 @@
 use crate::compute::{
-    file_utils::{
-        download_file, download_from_url, write_file
-    },
+    file_utils::{download_file, download_from_url, write_file},
     pre_compute_args::PreComputeArgs,
-};
-use shared::{
-    errors::ReplicateStatusCause,
-    utils::hash_utils::{sha256, sha256_from_bytes},
 };
 use aes::Aes256;
 use base64::{Engine as _, engine::general_purpose};
@@ -18,6 +12,10 @@ use log::{error, info};
 #[cfg(test)]
 use mockall::automock;
 use multiaddr::Multiaddr;
+use shared::{
+    errors::ReplicateStatusCause,
+    utils::hash_utils::{sha256, sha256_from_bytes},
+};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
