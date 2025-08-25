@@ -43,6 +43,12 @@ pub struct PreComputeApp {
     pre_compute_args: Option<PreComputeArgs>,
 }
 
+impl Default for PreComputeApp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PreComputeApp {
     pub fn new() -> Self {
         PreComputeApp {

@@ -56,6 +56,12 @@ pub struct DefaultPostComputeRunner {
     worker_api_client: WorkerApiClient,
 }
 
+impl Default for DefaultPostComputeRunner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DefaultPostComputeRunner {
     pub fn new() -> Self {
         Self {
