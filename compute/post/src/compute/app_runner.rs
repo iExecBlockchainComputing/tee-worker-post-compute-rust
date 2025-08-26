@@ -160,9 +160,10 @@ impl PostComputeRunnerInterface for DefaultPostComputeRunner {
 /// # Example
 ///
 /// ```rust
+/// use shared::worker_api::ExitMessage;
+/// use shared::errors::{ComputeStage, ReplicateStatusCause};
 /// use tee_worker_post_compute::compute::app_runner::{start_with_runner, DefaultPostComputeRunner, PostComputeRunnerInterface};
-/// use tee_worker_post_compute::compute::{computed_file::ComputedFile, errors::ReplicateStatusCause};
-/// use tee_worker_post_compute::api::worker_api::ExitMessage;
+/// use tee_worker_post_compute::compute::computed_file::ComputedFile;
 ///
 /// // Using the default runner
 /// let runner = DefaultPostComputeRunner::new();

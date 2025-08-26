@@ -78,19 +78,28 @@ pub const AES_IV_LENGTH: usize = 16;
 ///
 /// ```rust
 /// use tee_worker_post_compute::compute::encryption::encrypt_data;
-/// use tee_worker_post_compute::compute::errors::ReplicateStatusCause;
+/// use shared::errors::ReplicateStatusCause;
+///
+/// const TEST_RSA_PUBLIC_KEY_PEM: &str = r#"-----BEGIN PUBLIC KEY-----
+/// MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAr0mx20CSFczJaM4rtYfL
+/// VHXfTybD4J85SGrI6GfPlOhAnocZOMIRJVqrYSGqfNvw6bnv3OrNp0OJ6Av7v20r
+/// YiciyJ/R9c7W4jLksTC0qAEr1x8IsH1rsTcgIhD+V2eQWqi05ArUg+YDQiGr/B6T
+/// jJRbbZIjcX6l/let03NJ8b6vMgaY+6tpt9GXhm27/tVIG6vt0NYViU0cOY3+fRH7
+/// M1XvGQa3D0LnJTvhAgljz3Jpl7whAWQgluVDVNq7erJVN7/d5jpTG29FWrAYujvs
+/// KfizbB8KpGwCHwFcHZurz9+Sp4mH5cQCvz/VhFrAvzbhsIl6Qf8XURHmqxYc/DRt
+/// FQIDAQAB
+/// -----END PUBLIC KEY-----"#;
 ///
 /// fn main() -> Result<(), ReplicateStatusCause> {
 ///     let temp_file = tempfile::NamedTempFile::new().expect("Failed to create temp file");
 ///     std::fs::write(temp_file.path(), b"Super secret data").expect("Failed to write to temp file");
 ///     let file = temp_file.path().to_str().unwrap();
 ///     // Encrypt a file and create a ZIP archive
-///     let rsa_key = "-----BEGIN PUBLIC KEY-----\nMIIB...AQAB\n-----END PUBLIC KEY-----";
-///     let result = encrypt_data(file, rsa_key, true)?;
+///     let result = encrypt_data(file, TEST_RSA_PUBLIC_KEY_PEM, true)?;
 ///     println!("Encrypted ZIP created: {}", result);
 ///
 ///     // Encrypt a file and get directory path
-///     let result = encrypt_data(file, rsa_key, false)?;
+///     let result = encrypt_data(file, TEST_RSA_PUBLIC_KEY_PEM, false)?;
 ///     println!("Encrypted files in: {}", result);
 ///     Ok(())
 /// }
@@ -381,13 +390,20 @@ pub fn aes_encrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, ReplicateStatusCa
 ///
 /// ```rust
 /// use tee_worker_post_compute::compute::encryption::{aes_encrypt, generate_aes_key, write_file};
-/// use tee_worker_post_compute::compute::errors::ReplicateStatusCause;
+/// use shared::errors::ReplicateStatusCause;
 ///
 /// fn main() -> Result<(), ReplicateStatusCause> {
 ///     let plaintext: &[u8] = b"example data to encrypt";
 ///     let key = generate_aes_key()?;
 ///     let encrypted_data = aes_encrypt(&plaintext, &key)?;
-///     write_file("./output/data.aes".to_string(), &encrypted_data)?;
+///     match write_file("./output/data.aes".to_string(), &encrypted_data) {
+///         Ok(()) => {
+///             println!("File written successfully");
+///         },
+///         Err(e) => {
+///             eprintln!("Failed to write file: {e}");
+///         }
+///     }
 ///     Ok(())
 /// }
 /// ```

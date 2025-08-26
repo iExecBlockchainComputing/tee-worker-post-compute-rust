@@ -41,7 +41,7 @@ const DROPBOX_RESULT_STORAGE_PROVIDER: &str = "dropbox";
 /// ```rust
 /// use tee_worker_post_compute::compute::web2_result::Web2ResultInterface;
 /// use tee_worker_post_compute::compute::computed_file::ComputedFile;
-/// use tee_worker_post_compute::compute::errors::ReplicateStatusCause;
+/// use shared::errors::ReplicateStatusCause;
 ///
 /// struct MockResultService;
 ///
@@ -439,15 +439,21 @@ impl Web2ResultInterface for Web2ResultService {
     /// # Example
     ///
     /// ```rust
-    /// use crate::compute::web2_result::Web2ResultService;
+    /// use shared::utils::env_utils::TeeSessionEnvironmentVariable;
+    /// use tee_worker_post_compute::compute::web2_result::{Web2ResultInterface, Web2ResultService};
+    /// use shared::utils::env_utils::get_env_var_or_error;
     /// use std::env;
     ///
     /// // Set environment variables for encryption
-    /// env::set_var("RESULT_ENCRYPTION", "true");
-    /// env::set_var("RESULT_ENCRYPTION_PUBLIC_KEY", base64::encode("-----BEGIN PUBLIC KEY-----..."));
+    /// unsafe {
+    ///     env::set_var("RESULT_ENCRYPTION", "true");
+    ///     env::set_var("RESULT_ENCRYPTION_PUBLIC_KEY", base64::encode("-----BEGIN PUBLIC KEY-----..."));
+    /// }
     ///
-    /// let encrypted_path = Web2ResultService.eventually_encrypt_result("/path/to/result.zip").unwrap();
-    /// println!("Encrypted file at: {}", encrypted_path);
+    /// match Web2ResultService.eventually_encrypt_result("/path/to/result.zip") {
+    ///     Ok(path) => println!("Encrypted file at: {}", path),
+    ///     Err(e) => eprintln!("Failed to encrypt result: {e}"),
+    /// }
     /// ```
     fn eventually_encrypt_result(
         &self,

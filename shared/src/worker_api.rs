@@ -23,8 +23,8 @@ use serde::Serialize;
 /// # Example
 ///
 /// ```rust
-/// use tee_worker_pre_compute::api::worker_api::ExitMessage;
-/// use tee_worker_pre_compute::compute::errors::ReplicateStatusCause;
+/// use shared::worker_api::ExitMessage;
+/// use shared::errors::ReplicateStatusCause;
 ///
 /// let exit_message = ExitMessage::from(&ReplicateStatusCause::PreComputeInvalidTeeSignature);
 /// ```
@@ -47,7 +47,7 @@ impl<'a> From<&'a ReplicateStatusCause> for ExitMessage<'a> {
 /// # Example
 ///
 /// ```rust
-/// use tee_worker_pre_compute::api::worker_api::WorkerApiClient;
+/// use shared::worker_api::WorkerApiClient;
 ///
 /// let client = WorkerApiClient::new("http://worker:13100");
 /// ```
@@ -78,7 +78,7 @@ impl WorkerApiClient {
     /// # Example
     ///
     /// ```
-    /// use tee_worker_pre_compute::api::worker_api::WorkerApiClient;
+    /// use shared::worker_api::WorkerApiClient;
     ///
     /// let client = WorkerApiClient::from_env();
     /// ```
@@ -183,8 +183,8 @@ impl WorkerApiClient {
     /// # Example
     ///
     /// ```rust
-    /// use tee_worker_pre_compute::api::worker_api::{ExitMessage, WorkerApiClient};
-    /// use tee_worker_pre_compute::compute::errors::ReplicateStatusCause;
+    /// use shared::worker_api::{ExitMessage, WorkerApiClient};
+    /// use shared::errors::ReplicateStatusCause;
     ///
     /// let client = WorkerApiClient::new("http://worker:13100");
     /// let exit_message = ExitMessage::from(&ReplicateStatusCause::PreComputeInvalidTeeSignature);
@@ -236,8 +236,8 @@ impl WorkerApiClient {
     /// # Example
     ///
     /// ```
-    /// use tee_worker_post_compute::api::worker_api::{ExitMessage, WorkerApiClient};
-    /// use tee_worker_post_compute::compute::errors::ReplicateStatusCause;
+    /// use shared::worker_api::{ExitMessage, WorkerApiClient};
+    /// use shared::errors::ReplicateStatusCause;
     ///
     /// let client = WorkerApiClient::new("http://worker:13100");
     /// let exit_message = ExitMessage::from(&ReplicateStatusCause::PostComputeInvalidTeeSignature);

@@ -10,10 +10,12 @@ use shared::{errors::ReplicateStatusCause, worker_api::WorkerApiClient};
 ///
 /// # Example
 ///
-/// ```
-/// use tee_worker_post_compute::api::worker_api::ResultSenderApiClient;
+/// ```rust
+/// use shared::worker_api::WorkerApiClient;
+/// use tee_worker_post_compute::api::result_sender_api_client::ResultSenderApiClient;
 ///
-/// let client = ResultSenderApiClient::new("http://worker:13100");
+/// let worker_client = WorkerApiClient::from_env();
+/// let client = ResultSenderApiClient::new(&worker_client);
 /// ```
 pub struct ResultSenderApiClient {
     base_url: String,
@@ -36,7 +38,7 @@ impl ResultSenderApiClient {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```rust
     /// use shared::worker_api::WorkerApiClient;
     /// use tee_worker_post_compute::api::result_sender_api_client::ResultSenderApiClient;
     ///
@@ -69,11 +71,13 @@ impl ResultSenderApiClient {
     ///
     /// # Example
     ///
-    /// ```
-    /// use tee_worker_post_compute::api::worker_api::ResultSenderApiClient;
+    /// ```rust
+    /// use shared::worker_api::WorkerApiClient;
+    /// use tee_worker_post_compute::api::result_sender_api_client::ResultSenderApiClient;
     /// use tee_worker_post_compute::compute::computed_file::ComputedFile;
     ///
-    /// let client = ResultSenderApiClient::new("http://worker:13100");
+    /// let worker_client = WorkerApiClient::from_env();
+    /// let client = ResultSenderApiClient::new(&worker_client);
     /// let computed_file = ComputedFile {
     ///     task_id: Some("0x123456789abcdef".to_string()),
     ///     result_digest: Some("0xdigest".to_string()),
