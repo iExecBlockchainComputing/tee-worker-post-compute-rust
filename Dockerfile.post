@@ -23,4 +23,4 @@ WORKDIR /app
 COPY --from=builder /app/target/release/tee-worker-post-compute .
 
 # Run the post-compute application
-CMD ["/app/tee-worker-post-compute"]
+ENTRYPOINT ["/app/tee-worker-post-compute"]
