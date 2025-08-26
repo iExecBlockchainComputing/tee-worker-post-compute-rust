@@ -1,0 +1,26 @@
+[package]
+name = "shared"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+alloy-signer = { workspace = true }
+alloy-signer-local = { workspace = true }
+log = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+sha256 = { workspace = true }
+sha3 = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+logtest = { workspace = true }
+once_cell = { workspace = true }
+serde_json = { workspace = true }
+serial_test = { workspace = true }
+temp-env = { workspace = true }
+tempfile = { workspace = true }
+testcontainers = { workspace = true }
+testing_logger = { workspace = true }
+tokio = { workspace = true }
+wiremock = { workspace = true }

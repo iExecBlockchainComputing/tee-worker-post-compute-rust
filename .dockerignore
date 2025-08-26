@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+
+# Rust
+target/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Documentation
+README.md
+docs/
+
+# Docker
+Dockerfile.pre
+Dockerfile.post
+.dockerignore
+
+# CI/CD
+.github/
+
+# Tests
+tests/
+**/*_test.rs
+**/*_tests.rs
