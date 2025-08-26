@@ -2,8 +2,9 @@ name: Rust CI
 
 on:
   pull_request:
-    types: [opened]
   push:
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   build-and-test:
@@ -18,7 +19,7 @@ jobs:
     name: Determine Image Tag
     runs-on: ubuntu-latest
     needs: build-and-test
-    if: github.ref_name == 'main' || startsWith(github.ref_name, 'feature/') || startsWith(github.ref_name, 'bugfix/')
+    if: github.ref_name == 'main' || startsWith(github.head_ref, 'feature/') || startsWith(github.head_ref, 'bugfix/')
     outputs:
       tag: ${{ steps.determine-tag.outputs.tag }}
     steps:
@@ -33,7 +34,7 @@ jobs:
           else
             # This covers feature/ and bugfix/ branches
             TAG_NAME="feature-${SHORT_SHA}"
-            echo "Processing feature/bugfix branch: ${{ github.ref_name }} -> ${TAG_NAME}"
+            echo "Processing feature/bugfix branch: ${{ github.head_ref }} -> ${TAG_NAME}"
           fi
 
           echo "tag=${TAG_NAME}" >> "$GITHUB_OUTPUT"
