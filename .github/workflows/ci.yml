@@ -3,6 +3,8 @@ name: Rust CI
 on:
   pull_request:
   push:
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   build-and-test:
@@ -12,3 +14,55 @@ jobs:
       working-directory: "."
       enable-cache: true
       publish-crates-io: false
+
+  prepare:
+    name: Determine Image Tag
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: |
+      github.ref_name == 'main' ||
+      startsWith(github.head_ref, 'feature/') ||
+      startsWith(github.head_ref, 'bugfix/') ||
+      (github.event_name == 'workflow_dispatch' && (startsWith(github.ref_name, 'feature/') || startsWith(github.ref_name, 'bugfix/')))
+    outputs:
+      tag: ${{ steps.determine-tag.outputs.tag }}
+    steps:
+      - name: Determine Docker tag based on Git ref
+        id: determine-tag
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            SHORT_SHA=$(echo ${{ github.event.pull_request.head.sha }} | cut -c1-8)
+          else
+            SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-8)
+          fi
+
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            TAG_NAME="dev-${SHORT_SHA}"
+            echo "Processing main branch push -> ${TAG_NAME}"
+          else
+            # This covers feature/ and bugfix/ branches
+            TAG_NAME="feature-${SHORT_SHA}"
+            echo "Processing feature/bugfix branch: ${{ github.head_ref }} -> ${TAG_NAME}"
+          fi
+
+          echo "tag=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "Determined image tag: ${TAG_NAME}"
+
+  build-and-publish:
+    name: Build and Publish to Registry
+    needs: prepare
+    uses: iExecBlockchainComputing/github-actions-workflows/.github/workflows/docker-build.yml@docker-build-v2.4.0
+    with:
+      image-name: docker-regis.iex.ec/tee-worker-post-compute-rust
+      image-tag: ${{ needs.prepare.outputs.tag }}
+      dockerfile: Dockerfile
+      context: .
+      registry: docker-regis.iex.ec
+      push: true
+      security-scan: true
+      security-report: "sarif"
+      hadolint: true
+      platforms: linux/amd64
+    secrets:
+      username: ${{ secrets.NEXUS_USERNAME }}
+      password: ${{ secrets.NEXUS_PASSWORD }}
