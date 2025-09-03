@@ -1,3 +1,5 @@
+name: Release Please
+
 on:
   push:
     branches:
@@ -8,9 +10,18 @@ permissions:
   issues: write
   pull-requests: write
 
-name: release-please
-
 jobs:
   release-please:
-    uses: iExecBlockchainComputing/github-actions-workflows/.github/workflows/release-please.yml@release-please-v2.0.0
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get Token
+        id: get_token
+        uses: peter-murray/workflow-application-token-action@v4
+        with:
+          application_id: "${{ secrets.RELEASE_PLEASE_APPLICATION_ID }}"
+          application_private_key: ${{ secrets.RELEASE_PLEASE_PRIVATE_KEY }}
+      - name: Run release-please
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ steps.get_token.outputs.token }}
+          target-branch: ${{ github.ref_name }}
