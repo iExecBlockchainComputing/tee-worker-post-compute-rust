@@ -1,11 +1,42 @@
 {
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "draft-pull-request": true,
+  "separate-pull-requests": false,
+  "include-component-in-tag": false,
+  "include-v-in-tag": true,
+  "plugins": [
+    {
+      "type": "cargo-workspace",
+      "merge": false
+    },
+    {
+      "type": "linked-versions",
+      "groupName": "tee-worker-compute-rust",
+      "components": [
+        "post-compute",
+        "pre-compute",
+        "shared"
+      ]
+    }
+  ],
   "packages": {
-    ".": {
+    "compute/post": {
       "release-type": "rust",
+      "package-name": "tee-worker-post-compute",
+      "component": "post-compute",
+      "changelog-path": "CHANGELOG.md"
+    },
+    "compute/pre": {
+      "release-type": "rust",
+      "package-name": "tee-worker-pre-compute",
+      "component": "pre-compute",
+      "changelog-path": "CHANGELOG.md"
+    },
+    "shared": {
+      "release-type": "rust",
+      "package-name": "shared",
+      "component": "shared",
       "changelog-path": "CHANGELOG.md"
     }
   }
 }
-
